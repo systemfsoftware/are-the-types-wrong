@@ -18,9 +18,6 @@
       "dependsOn": [
         "@systemfsoftware/arethetypeswrong#build"
       ]
-    },
-    "lint": {
-      "dependsOn": []
     }
   }
 }
