@@ -34,6 +34,8 @@ pnpm exec attw --pack .
 > [!NOTE]
 > Prefer a lockfile-pinned install over `npx`. A tool that audits what your package resolves should not itself be resolved fresh from the registry on each run.
 
+The package is self-contained — the analyzer and the compiler it uses ship inside the executable, and it declares no runtime dependencies — so installing it adds nothing else to your `node_modules`.
+
 To use `attw` outside any project, install it globally:
 
 ```shell
