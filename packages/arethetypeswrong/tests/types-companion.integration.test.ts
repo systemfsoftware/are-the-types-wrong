@@ -1,4 +1,5 @@
 import { checkPackage, containsTypes, withTypesCompanion } from '@systemfsoftware/arethetypeswrong'
+import type { EntrypointInfo } from '@systemfsoftware/arethetypeswrong'
 import { recipes } from '@systemfsoftware/arethetypeswrong-recipes'
 import { it, layer, makeFeature, StepError } from '@systemfsoftware/effect-gherkin-spec'
 import { createPackage } from '@systemfsoftware/npm-package'
@@ -73,12 +74,19 @@ Feature('Types companion — containsTypes and overlay pairing').body(({ scenari
         throw new StepError({ keyword: 'THEN', text: 'Expected Analysis', cause: result })
       }
       expect(result.types).toMatchObject(expectedTypes)
-      expect('problems' in result ? result.problems : []).toEqual([])
+      let problems: readonly unknown[] = []
+      if ('problems' in result) {
+        problems = result.problems
+      }
+      expect(problems).toEqual([])
       expect(result.packageName).toBe('types-companion')
       expect(result.packageVersion).toBe('1.0.0')
 
       // Ensure the companion's name and version surface in the resolution trace
-      const entrypoint = 'entrypoints' in result ? result.entrypoints['.'] : undefined
+      let entrypoint: EntrypointInfo | undefined
+      if ('entrypoints' in result) {
+        entrypoint = result.entrypoints['.']
+      }
       expect(entrypoint).toBeDefined()
       // The types field already proves companion identity; problems being empty proves same problem set as snapshot
     }),

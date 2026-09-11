@@ -26,12 +26,15 @@ export const hasExportTarget = (exportsObject: unknown): boolean => {
 }
 
 export const formatEntrypointString = (path: string, packageName: string): string => {
-  const normalized = path === '.' || path.startsWith('./')
-    ? path
-    : path === packageName
-    ? '.'
-    : path.startsWith(`${packageName}/`)
-    ? `.${path.slice(packageName.length)}`
-    : `./${path}`
+  let normalized: string
+  if (path === '.' || path.startsWith('./')) {
+    normalized = path
+  } else if (path === packageName) {
+    normalized = '.'
+  } else if (path.startsWith(`${packageName}/`)) {
+    normalized = `.${path.slice(packageName.length)}`
+  } else {
+    normalized = `./${path}`
+  }
   return normalized.trim()
 }

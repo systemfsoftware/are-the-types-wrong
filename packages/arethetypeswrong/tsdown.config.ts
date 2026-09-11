@@ -11,10 +11,14 @@ const injectTypes = (exports: Record<string, ExportEntry>): Record<string, Expor
     const entry = exports[subpath]
     if (typeof entry === 'string') {
       exports[subpath] = { types, default: entry }
-    } else if (typeof entry === 'object' && entry !== null) {
-      const { default: defaultEntry, types: _existingTypes, ...rest } = entry
-      const withDefault = typeof defaultEntry === 'string' ? { default: defaultEntry } : {}
-      exports[subpath] = { ...rest, types, ...withDefault }
+      continue
+    }
+    if (typeof entry !== 'object') continue
+    const { default: defaultEntry, types: _existingTypes, ...rest } = entry
+    if (typeof defaultEntry === 'string') {
+      exports[subpath] = { ...rest, types, default: defaultEntry }
+    } else {
+      exports[subpath] = { ...rest, types }
     }
   }
   return exports

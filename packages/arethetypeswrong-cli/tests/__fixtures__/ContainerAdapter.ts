@@ -34,12 +34,15 @@ export const ContainerLive: Layer.Layer<Container> = Layer.effect(
     const client = await getContainerRuntimeClient()
     const container = client.container.getById(inject('attwContainerId'))
     const exec = (command: readonly string[], options?: ExecOptions) =>
-      Effect.promise(() =>
-        client.container.exec(container, [...command], {
+      Effect.promise(() => {
+        const env = options?.env
+        const envFields: { env?: Record<string, string> } = {}
+        if (env !== undefined) envFields.env = env
+        return client.container.exec(container, [...command], {
           workingDir: options?.cwd ?? WORKDIR,
-          ...(options?.env === undefined ? {} : { env: options.env }),
+          ...envFields,
         })
-      ).pipe(
+      }).pipe(
         Effect.map((result) => ({
           exitCode: result.exitCode,
           stdout: result.stdout,

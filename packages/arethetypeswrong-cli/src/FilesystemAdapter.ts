@@ -25,7 +25,7 @@ const fromPlatform = (
   fileExists: (filePath) => fs.exists(filePath).pipe(Effect.orElseSucceed(() => false)),
   isDirectory: (filePath) =>
     fs.stat(filePath).pipe(
-      Effect.map((s) => (s as { type: string }).type === 'directory'),
+      Effect.map((s) => s.type === 'Directory'),
       Effect.orElseSucceed(() => false),
     ),
   readUtf8: (filePath) =>

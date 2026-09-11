@@ -1,4 +1,5 @@
 import type { Package } from '@systemfsoftware/npm-package'
+import type { Exports } from 'cjs-module-lexer'
 import { getCjsModuleNamespace } from './CjsNamespace.js'
 import { getEsmModuleBindings } from './EsmBindings.js'
 import { esmResolve } from './Resolve.js'
@@ -27,10 +28,13 @@ export function getEsmModuleNamespace(
   }
 
   // Parse module bindings
-  const bindings = (format ?? 'module') === 'module'
-    ? getEsmModuleBindings(fs.readFile(url.pathname))
+  let bindings: Exports
+  if ((format ?? 'module') === 'module') {
+    bindings = getEsmModuleBindings(fs.readFile(url.pathname))
+  } else {
     // Maybe JSON, WASM, etc
-    : { exports: ['default'], reexports: [] }
+    bindings = { exports: ['default'], reexports: [] }
+  }
 
   // Concat indirect exports
   const indirect = bindings.reexports

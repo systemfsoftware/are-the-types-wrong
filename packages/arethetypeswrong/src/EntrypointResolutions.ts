@@ -13,7 +13,7 @@ export const detectEntrypointResolutions = (
 ): readonly Problem[] => {
   const { subpath, entrypoint, node16ModuleKinds } = input
   const problems: Problem[] = []
-  if (entrypoint.isWildcard) {
+  if (entrypoint.isWildcard === true) {
     return problems
   }
 
@@ -32,12 +32,16 @@ export const detectEntrypointResolutions = (
   }
 
   if (entrypoint.resolutionKind === 'node16-cjs') {
-    const typesModuleKind = entrypoint.resolution && node16ModuleKinds
-      ? node16ModuleKinds[entrypoint.resolution.fileName]
-      : undefined
-    const implModuleKind = entrypoint.implementationResolution && node16ModuleKinds
-      ? node16ModuleKinds[entrypoint.implementationResolution.fileName]
-      : undefined
+    const resolution = entrypoint.resolution
+    const implementationResolution = entrypoint.implementationResolution
+    let typesModuleKind: ModuleKind | undefined
+    if (resolution !== undefined && node16ModuleKinds !== undefined) {
+      typesModuleKind = node16ModuleKinds[resolution.fileName]
+    }
+    let implModuleKind: ModuleKind | undefined
+    if (implementationResolution !== undefined && node16ModuleKinds !== undefined) {
+      implModuleKind = node16ModuleKinds[implementationResolution.fileName]
+    }
     const isTypesESM = typesModuleKind?.detectedKind === ESNextModuleKind
     const isImplESM = implModuleKind?.detectedKind === ESNextModuleKind
     if (isTypesESM || isImplESM) {
@@ -49,7 +53,7 @@ export const detectEntrypointResolutions = (
     }
   }
 
-  if (entrypoint.resolution && resolvedThroughFallback(entrypoint.resolution.trace)) {
+  if (entrypoint.resolution !== undefined && resolvedThroughFallback(entrypoint.resolution.trace)) {
     problems.push({
       kind: 'FallbackCondition',
       entrypoint: subpath,

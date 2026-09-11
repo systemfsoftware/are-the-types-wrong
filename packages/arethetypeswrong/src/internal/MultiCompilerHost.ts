@@ -1,7 +1,8 @@
 import type { Package } from '@systemfsoftware/npm-package'
 import { Cache, Effect, MutableHashMap, Option, Schema } from 'effect'
 import ts from 'typescript'
-import type { ModuleKind } from '../Types.js'
+import { type ModuleKind, type ModuleKindReason } from '../Types.js'
+import { isNonEmptyString } from '../Utils.js'
 import minimalLibDts from './MinimalLibDts.js'
 
 /** @internal */
@@ -97,7 +98,8 @@ const makeCompilerHost = (
 
     const moduleResolutionCache: Record<
       string,
-      Record<string, { resolution: ts.ResolvedModuleWithFailedLookupLocations; trace: string[] }>
+      | Record<string, { resolution: ts.ResolvedModuleWithFailedLookupLocations; trace: string[] } | undefined>
+      | undefined
     > = {}
     const sourceFileCache = MutableHashMap.empty<ts.Path, ts.SourceFile>()
     const languageVersion = ts.ScriptTarget.Latest
@@ -122,7 +124,7 @@ const makeCompilerHost = (
       resolutionMode: ts.ModuleKind.ESNext | ts.ModuleKind.CommonJS | undefined,
       noDtsResolution: boolean | undefined,
       allowJs: boolean | undefined,
-    ): string => `${resolutionMode ?? 1}:${+!!noDtsResolution}:${+!!allowJs}:${moduleSpecifier}`
+    ): string => `${resolutionMode ?? 1}:${+(noDtsResolution === true)}:${+(allowJs === true)}:${moduleSpecifier}`
 
     const getImpliedNodeFormatForFile = (
       fileName: string,
@@ -152,25 +154,31 @@ const makeCompilerHost = (
       allowJs?: boolean,
     ): ResolveModuleNameResult => {
       const moduleKey = getModuleKey(moduleName, resolutionMode, noDtsResolution, allowJs)
-      if (moduleResolutionCache[containingFile]?.[moduleKey]) {
-        const { resolution, trace: cachedTrace } = moduleResolutionCache[containingFile][moduleKey]
+      const cached = moduleResolutionCache[containingFile]?.[moduleKey]
+      if (cached !== undefined) {
         return {
-          resolution,
-          trace: cachedTrace,
+          resolution: cached.resolution,
+          trace: cached.trace,
         }
       }
       clearTraces()
+      let resolutionOptions: ts.CompilerOptions = compilerOptions
+      let resolutionCache = normalModuleResolutionCache
+      if (noDtsResolution === true) {
+        resolutionOptions = { ...compilerOptions, noDtsResolution, allowJs }
+        resolutionCache = noDtsResolutionModuleResolutionCache
+      }
       const resolution = ts.resolveModuleName(
         moduleName,
         containingFile,
-        noDtsResolution ? { ...compilerOptions, noDtsResolution, allowJs } : compilerOptions,
+        resolutionOptions,
         compilerHost,
-        noDtsResolution ? noDtsResolutionModuleResolutionCache : normalModuleResolutionCache,
+        resolutionCache,
         undefined,
         resolutionMode,
       )
       const traceResult = readTraces()
-      if (!moduleResolutionCache[containingFile]?.[moduleKey]) {
+      if (moduleResolutionCache[containingFile]?.[moduleKey] === undefined) {
         ;(moduleResolutionCache[containingFile] ??= {})[moduleKey] = { resolution, trace: traceResult }
       }
       return {
@@ -189,7 +197,12 @@ const makeCompilerHost = (
         if (Option.isSome(cachedOption)) {
           return cachedOption.value
         }
-        const content = fileName === '/node_modules/typescript/lib/lib.d.ts' ? minimalLibDts : pkg.tryReadFile(fileName)
+        let content: string | undefined
+        if (fileName === '/node_modules/typescript/lib/lib.d.ts') {
+          content = minimalLibDts
+        } else {
+          content = pkg.tryReadFile(fileName)
+        }
         if (content === undefined) {
           return undefined
         }
@@ -275,7 +288,7 @@ const makeCompilerHost = (
 
     const getModuleKindForFile = (fileName: string): ModuleKind | undefined => {
       const kind = getImpliedNodeFormatForFile(fileName)
-      if (kind) {
+      if (kind !== undefined) {
         const extension = ts.getAnyExtensionFromPath(fileName)
         const isExtension = extension === ts.Extension.Cjs ||
           extension === ts.Extension.Cts ||
@@ -283,16 +296,30 @@ const makeCompilerHost = (
           extension === ts.Extension.Mjs ||
           extension === ts.Extension.Mts ||
           extension === ts.Extension.Dmts
-        const reasonPackageJsonInfo = isExtension ? undefined : getPackageScopeForPath(fileName)
-        const reasonFileName = isExtension
-          ? fileName
-          : reasonPackageJsonInfo
-          ? reasonPackageJsonInfo.packageDirectory + '/package.json'
-          : fileName
-        const reasonPackageJsonType = reasonPackageJsonInfo?.contents?.packageJsonContent.type
+        let reasonPackageJsonInfo: ts.PackageJsonInfo | undefined
+        if (!isExtension) {
+          reasonPackageJsonInfo = getPackageScopeForPath(fileName)
+        }
+        let reasonFileName: string
+        if (isExtension) {
+          reasonFileName = fileName
+        } else if (reasonPackageJsonInfo !== undefined) {
+          reasonFileName = reasonPackageJsonInfo.packageDirectory + '/package.json'
+        } else {
+          reasonFileName = fileName
+        }
+        const reasonPackageJsonType = reasonPackageJsonInfo?.contents.packageJsonContent.type
+        let detectedReason: ModuleKindReason
+        if (isExtension) {
+          detectedReason = 'extension'
+        } else if (isNonEmptyString(reasonPackageJsonType)) {
+          detectedReason = 'type'
+        } else {
+          detectedReason = 'no:type'
+        }
         return {
           detectedKind: kind,
-          detectedReason: isExtension ? 'extension' : reasonPackageJsonType ? 'type' : 'no:type',
+          detectedReason,
           reasonFileName,
         }
       }

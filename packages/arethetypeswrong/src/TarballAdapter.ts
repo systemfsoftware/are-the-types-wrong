@@ -28,10 +28,12 @@ export const TarballAdapterLive: Layer.Layer<TarballAdapter, never, never> = Lay
     extract: (tarball) =>
       Effect.try({
         try: () => extractTarball(tarball),
-        catch: (e) =>
-          e instanceof TarballAdapterError
-            ? e
-            : new TarballAdapterError('Failed to extract tarball', { cause: e }),
+        catch: (e) => {
+          if (e instanceof TarballAdapterError) {
+            return e
+          }
+          return new TarballAdapterError('Failed to extract tarball', { cause: e })
+        },
       }),
   },
 )
@@ -58,7 +60,12 @@ function extractTarball(tarball: Uint8Array): ExtractedTarball {
     if (path === packageJsonPath) continue
     const raw = pkg.tryReadBytes(path)
     if (raw === undefined) continue
-    const content = typeof raw === 'string' ? new TextEncoder().encode(raw) : raw
+    let content: Uint8Array
+    if (typeof raw === 'string') {
+      content = new TextEncoder().encode(raw)
+    } else {
+      content = raw
+    }
     files.push({ path, content })
   }
   return { packageName, packageVersion, files }

@@ -75,7 +75,7 @@ function getEsbuildStatementExports(statement: ts.Statement, sourceFile: ts.Sour
   })
 }
 
-function isEsbuildExportFunction(decl: ts.Declaration | undefined) {
+function isEsbuildExportFunction(decl: ts.Declaration | undefined): boolean {
   /*
   esbuild:
   var __export = (target, all) => {
@@ -99,7 +99,7 @@ function isEsbuildExportFunction(decl: ts.Declaration | undefined) {
   }
   return (
     ts.isVariableDeclaration(decl) &&
-    decl.initializer &&
+    decl.initializer !== undefined &&
     isFunctionExpressionOrArrowFunction(decl.initializer) &&
     ts.isBlock(decl.initializer.body) &&
     decl.initializer.body.statements.length == 1 &&
@@ -141,13 +141,17 @@ function getWebpackBootstrapExports(sourceFile: ts.SourceFile): Export[] | undef
       continue
     }
 
-    const entryModule = bootstrapCall.arguments[0].elements[entryModuleId]
-    if (!entryModule || !ts.isFunctionExpression(entryModule)) {
+    const entryModules = bootstrapCall.arguments[0].elements
+    if (!Object.hasOwn(entryModules, entryModuleId)) {
+      continue
+    }
+    const entryModule = entryModules[entryModuleId]
+    if (!ts.isFunctionExpression(entryModule)) {
       continue
     }
 
-    const exportsParameterName = entryModule.parameters[1]?.name
-    if (!exportsParameterName || !ts.isIdentifier(exportsParameterName)) {
+    const exportsParameterName = entryModule.parameters.at(1)?.name
+    if (exportsParameterName === undefined || !ts.isIdentifier(exportsParameterName)) {
       continue
     }
     const exportsParameterText = exportsParameterName.text

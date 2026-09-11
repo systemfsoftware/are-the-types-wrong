@@ -37,10 +37,12 @@ export const PackageStoreLive: Layer.Layer<PackageStore, never, never> = Layer.s
     resolveTarballRef: (specs, options) =>
       Effect.tryPromise({
         try: () => resolveTarballRef(specs, options),
-        catch: (e): PackageNotFoundError | PackageStoreError =>
-          e instanceof PackageNotFoundError
-            ? e
-            : new PackageStoreError({ message: `Failed to resolve ${nameOf(specs)}`, cause: e }),
+        catch: (e): PackageNotFoundError | PackageStoreError => {
+          if (e instanceof PackageNotFoundError) {
+            return e
+          }
+          return new PackageStoreError({ message: `Failed to resolve ${nameOf(specs)}`, cause: e })
+        },
       }),
     fetchTarball: (tarballUrl) =>
       Effect.tryPromise({
@@ -77,10 +79,8 @@ const tarballFor = (
     )
     const packageVersion = maxSatisfying(candidates, spec.version)
     if (packageVersion === null) return undefined
-    const tarballUrl = versions[packageVersion]?.dist.tarball
-    return tarballUrl === undefined
-      ? undefined
-      : { packageName: spec.name, packageVersion, tarballUrl }
+    const tarballUrl = versions[packageVersion].dist.tarball
+    return { packageName: spec.name, packageVersion, tarballUrl }
   }
   if (spec.versionKind === 'tag' && spec.version !== 'latest') {
     // A named tag names no version in the packument's `versions` map, so the
@@ -92,22 +92,19 @@ const tarballFor = (
       return undefined
     }
     const tarballUrl = versions?.[packageVersion]?.dist.tarball
-    return tarballUrl === undefined
-      ? undefined
-      : { packageName: spec.name, packageVersion, tarballUrl }
+    if (tarballUrl === undefined) return undefined
+    return { packageName: spec.name, packageVersion, tarballUrl }
   }
   if (doc.version !== undefined) {
     const tarballUrl = doc.dist?.tarball
-    return tarballUrl === undefined
-      ? undefined
-      : { packageName: spec.name, packageVersion: doc.version, tarballUrl }
+    if (tarballUrl === undefined) return undefined
+    return { packageName: spec.name, packageVersion: doc.version, tarballUrl }
   }
   const packageVersion = doc['dist-tags']?.['latest']
   if (packageVersion === undefined) return undefined
   const tarballUrl = versions?.[packageVersion]?.dist.tarball
-  return tarballUrl === undefined
-    ? undefined
-    : { packageName: spec.name, packageVersion, tarballUrl }
+  if (tarballUrl === undefined) return undefined
+  return { packageName: spec.name, packageVersion, tarballUrl }
 }
 
 async function resolveTarballRef(
@@ -121,10 +118,16 @@ async function resolveTarballRef(
   // The install-v1 abbreviated document omits `time`, so publish dates are only
   // requested when a `before` cutoff actually needs them.
   const includeTimes = options.before !== undefined && packageSpecs.some((spec) => spec.versionKind !== 'exact')
-  const accept = includeTimes ? 'application/json' : 'application/vnd.npm.install-v1+json'
-  const packument: unknown = fetchPackument
-    ? await fetch(`${baseUrl}/${nameOf(packageSpecs)}`, { headers: { accept } }).then((r) => r.json())
-    : undefined
+  let accept: string
+  if (includeTimes) {
+    accept = 'application/json'
+  } else {
+    accept = 'application/vnd.npm.install-v1+json'
+  }
+  let packument: unknown
+  if (fetchPackument) {
+    packument = await fetch(`${baseUrl}/${nameOf(packageSpecs)}`, { headers: { accept } }).then((r) => r.json())
+  }
 
   for (const packageSpec of packageSpecs) {
     const manifestUrl = `${baseUrl}/${packageSpec.name}/${packageSpec.version || 'latest'}`

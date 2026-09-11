@@ -10,7 +10,7 @@ export default defineCheck({
   execute: ([subpath, resolutionKind], context) => {
     const problems: Problem[] = []
     const entrypoint = context.entrypoints[subpath].resolutions[resolutionKind]
-    if (entrypoint.isWildcard) {
+    if (entrypoint.isWildcard === true) {
       return
     }
 
@@ -44,7 +44,7 @@ export default defineCheck({
       })
     }
 
-    if (entrypoint.resolution && resolvedThroughFallback(entrypoint.resolution.trace)) {
+    if (entrypoint.resolution !== undefined && resolvedThroughFallback(entrypoint.resolution.trace) === true) {
       problems.push({
         kind: 'FallbackCondition',
         entrypoint: subpath,

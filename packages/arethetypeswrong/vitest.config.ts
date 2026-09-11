@@ -4,7 +4,21 @@ import { defineConfig } from 'vitest/config'
 // Ported from the monorepo's `@systemfsoftware/vitest-config`.
 const isAgent = process.env['AGENT'] !== undefined
 const isCI = !isAgent && typeof process.env['CI'] === 'string' && process.env['CI'].length > 0
-const sharedTestTimeout = isCI ? 30_000 : isAgent ? 15_000 : 8_000
+let sharedTestTimeout: number
+if (isCI) {
+  sharedTestTimeout = 30_000
+} else if (isAgent) {
+  sharedTestTimeout = 15_000
+} else {
+  sharedTestTimeout = 8_000
+}
+
+let silent: 'passed-only' | false = false
+let bailOptions: { bail: number } | undefined
+if (isAgent) {
+  silent = 'passed-only'
+  bailOptions = { bail: 1 }
+}
 
 const sharedConfig = {
   test: {
@@ -13,8 +27,8 @@ const sharedConfig = {
     exclude: ['**/.stryker-tmp/**', '**/node_modules/**', '**/.repo/**'],
     passWithNoTests: true,
     testTimeout: sharedTestTimeout,
-    silent: isAgent ? ('passed-only' as const) : false,
-    ...(isAgent ? { bail: 1 } : {}),
+    silent,
+    ...bailOptions,
     coverage: {
       enabled: isCI || process.env['COVERAGE'] === 'true',
       provider: 'v8' as const,
@@ -29,7 +43,7 @@ export default defineConfig({
   test: {
     ...sharedConfig.test,
     include: ['tests/**/*.test.ts', 'src/schema-laws.test.ts'],
-    exclude: [...(sharedConfig.test.exclude ?? []), '**/snapshots/**'],
+    exclude: [...sharedConfig.test.exclude, '**/snapshots/**'],
     includeSource: ['src/**/*.ts'],
   },
 })

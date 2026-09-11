@@ -38,10 +38,14 @@ export const renderAnalysis = (
       return renderJson({ analysis: result }, { pretty: true })
     }
     const visible = visibleProblems(result, options)
-    return renderJson(
-      { analysis: result, problems: visible, ...(options.summary ? { summary: renderSummary(visible) } : {}) },
-      { pretty: true },
-    )
+    const payload: { analysis: Analysis; problems: readonly Problem[]; summary?: string } = {
+      analysis: result,
+      problems: visible,
+    }
+    if (options.summary) {
+      payload.summary = renderSummary(visible)
+    }
+    return renderJson(payload, { pretty: true })
   }
   if (isUntyped(result)) {
     return renderUntyped({

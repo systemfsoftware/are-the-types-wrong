@@ -21,7 +21,7 @@ Feature('CheckPackage — analysis of a synthetic recipe package').body(({ scena
       const result = yield* checkPackage(pkg).pipe(
         Effect.mapError((cause) => new StepError({ keyword: 'scenario', text: 'checkPackage failed', cause })),
       )
-      if ('packageName' in result && result.packageName !== undefined) {
+      if ('packageName' in result) {
         expect(result.packageName).toBe('named-exports')
       }
       if ('entrypoints' in result) {

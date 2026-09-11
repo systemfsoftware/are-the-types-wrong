@@ -1,32 +1,36 @@
-import { ConfigProvider, Effect, Layer } from 'effect'
-import * as fs from 'node:fs/promises'
-import * as path from 'node:path'
+import { ConfigProvider, Effect, Layer, Schema } from 'effect'
+import * as PlatformFs from 'effect/FileSystem'
+import * as PlatformPathMod from 'effect/Path'
 
-/**
- * Read `.attw.json` if the working directory has one. A missing or malformed
- * file is not an error: the CLI's flags are the source of truth and the file
- * only supplies defaults, so an unreadable candidate is skipped.
- */
-const readAttwConfigJson = async (): Promise<unknown> => {
+const readAttwConfigJson: Effect.Effect<
+  unknown,
+  never,
+  PlatformFs.FileSystem | PlatformPathMod.Path
+> = Effect.gen(function*() {
+  const fs = yield* PlatformFs.FileSystem
+  const path = yield* PlatformPathMod.Path
   const cwd = process.cwd()
   for (const candidate of ['.attw.json', path.join(cwd, '.attw.json')]) {
-    try {
-      const buf = await fs.readFile(candidate, 'utf8')
-      return JSON.parse(buf)
-    } catch {
-      continue
-    }
+    const text = yield* fs.readFileString(candidate).pipe(Effect.orElseSucceed(() => undefined))
+    if (text === undefined) continue
+    const parsed = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))(text).pipe(
+      Effect.orElseSucceed(() => undefined),
+    )
+    if (parsed === undefined) continue
+    return parsed
   }
   return null
-}
+})
 
-const configProviderEffect: Effect.Effect<ConfigProvider.ConfigProvider, never, never> = Effect.promise(
-  async () => {
-    const json = await readAttwConfigJson()
-    if (json === null) return ConfigProvider.fromUnknown({})
-    return ConfigProvider.fromUnknown(json)
-  },
-)
+const configProviderEffect: Effect.Effect<
+  ConfigProvider.ConfigProvider,
+  never,
+  PlatformFs.FileSystem | PlatformPathMod.Path
+> = Effect.gen(function*() {
+  const json = yield* readAttwConfigJson
+  if (json === null) return ConfigProvider.fromUnknown({})
+  return ConfigProvider.fromUnknown(json)
+})
 
 /**
  * The file's keys are read exactly as written. `constantCase` used to wrap this
@@ -38,6 +42,8 @@ const configProviderEffect: Effect.Effect<ConfigProvider.ConfigProvider, never, 
  * outright: the file would have silenced environment configuration instead of
  * supplying defaults beneath it.
  */
-export const AttwConfigFileLayer: Layer.Layer<never, never, never> = ConfigProvider.layerAdd(
-  configProviderEffect,
-)
+export const AttwConfigFileLayer: Layer.Layer<
+  never,
+  never,
+  PlatformFs.FileSystem | PlatformPathMod.Path
+> = ConfigProvider.layerAdd(configProviderEffect)

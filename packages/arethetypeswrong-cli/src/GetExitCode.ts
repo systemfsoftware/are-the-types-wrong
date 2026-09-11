@@ -21,5 +21,8 @@ export const computeExitCode = (command: ComputeExitCodeCommand): ComputeExitCod
   const ignoredRules = new Set<string>(command.ignoreRules)
   const ignoredResolutions = new Set<string>(command.ignoreResolutions)
   const hasVisibleProblem = result.problems.some((p) => isVisibleProblem(p, ignoredRules, ignoredResolutions))
-  return new ComputeExitCodeDecision({ exitCode: hasVisibleProblem ? 1 : 0 })
+  if (hasVisibleProblem) {
+    return new ComputeExitCodeDecision({ exitCode: 1 })
+  }
+  return new ComputeExitCodeDecision({ exitCode: 0 })
 }

@@ -1,11 +1,11 @@
 import { Effect } from 'effect'
 import ts from 'typescript'
 import type { Problem } from '../../Types.js'
-import { getResolutionOption } from '../../Utils.js'
+import { getResolutionOption, isNonEmptyString } from '../../Utils.js'
 import { defineCheck } from '../DefineCheck.js'
 import { type Export, getProbableExports } from '../GetProbableExports.js'
 import type { CompilerHost } from '../MultiCompilerHost.js'
-import { isFunctionBlock, typeHasCallOrConstructSignatures } from '../TsCompat.js'
+import { getSourceFileSymbol, isFunctionBlock, typeHasCallOrConstructSignatures } from '../TsCompat.js'
 
 const bindOptions: ts.CompilerOptions = {
   target: ts.ScriptTarget.Latest,
@@ -21,10 +21,10 @@ export default defineCheck({
     const typesFileName = entrypoint.resolution?.fileName
     const implementationFileName = entrypoint.implementationResolution?.fileName
     if (
-      (typesFileName &&
+      (isNonEmptyString(typesFileName) &&
         programInfo[getResolutionOption(resolutionKind)].moduleKinds?.[typesFileName]?.detectedKind ===
           ts.ModuleKind.ESNext) ||
-      (implementationFileName &&
+      (isNonEmptyString(implementationFileName) &&
         programInfo[getResolutionOption(resolutionKind)].moduleKinds?.[implementationFileName]?.detectedKind ===
           ts.ModuleKind.ESNext)
     ) {
@@ -34,7 +34,11 @@ export default defineCheck({
   },
   gather: ([typesFileName, implementationFileName], context) =>
     Effect.gen(function*() {
-      if (!typesFileName || !implementationFileName || !ts.hasTSFileExtension(typesFileName)) {
+      if (
+        !isNonEmptyString(typesFileName) ||
+        !isNonEmptyString(implementationFileName) ||
+        !ts.hasTSFileExtension(typesFileName)
+      ) {
         return undefined
       }
       const host: CompilerHost | undefined = context.hosts.findHostForFiles([typesFileName])
@@ -51,10 +55,12 @@ export default defineCheck({
       }
       ts.bindSourceFile(typesSourceFile, bindOptions)
       ts.bindSourceFile(implementationSourceFile, bindOptions)
-      if (!typesSourceFile.symbol?.exports || !implementationSourceFile.symbol?.exports) {
+      const typesSymbol = getSourceFileSymbol(typesSourceFile)
+      const implementationSymbol = getSourceFileSymbol(implementationSourceFile)
+      if (typesSymbol?.exports === undefined || implementationSymbol?.exports === undefined) {
         return undefined
       }
-      if (implementationSourceFile.externalModuleIndicator) {
+      if (implementationSourceFile.externalModuleIndicator !== undefined) {
         return undefined
       }
 
@@ -68,8 +74,8 @@ export default defineCheck({
         implementationFileName,
         typesSourceFile,
         implementationSourceFile,
-        typesExports: typesSourceFile.symbol.exports,
-        implementationExports: implementationSourceFile.symbol.exports,
+        typesExports: typesSymbol.exports,
+        implementationExports: implementationSymbol.exports,
         implChecker,
         typesChecker,
       }
@@ -187,9 +193,10 @@ function getImplHasDefault(input: DisagreementAnalysis, memo: AnalysisMemo): boo
 
 function implIsAnalyzable(input: DisagreementAnalysis, memo: AnalysisMemo): boolean {
   const exportEquals = input.implementationExports.get(ts.InternalSymbolName.ExportEquals)
-  if (exportEquals?.declarations?.length && exportEquals.declarations.length > 1) {
+  const exportEqualsDeclarations = exportEquals?.declarations
+  if (exportEqualsDeclarations !== undefined && exportEqualsDeclarations.length > 1) {
     let commonContainer
-    for (const decl of exportEquals.declarations) {
+    for (const decl of exportEqualsDeclarations) {
       const container = ts.findAncestor(decl, (node) => isFunctionBlock(node) || ts.isSourceFile(node))
       if (commonContainer === undefined) {
         commonContainer = container
@@ -214,9 +221,11 @@ function getTypesDefaultSymbol(input: DisagreementAnalysis, memo: AnalysisMemo):
 function getTypesTypeOfDefault(input: DisagreementAnalysis, memo: AnalysisMemo): ts.Type {
   if (memo.typesTypeOfDefault === undefined) {
     const symbol = getTypesDefaultSymbol(input, memo)
-    memo.typesTypeOfDefault = symbol
-      ? input.typesChecker.getTypeOfSymbol(symbol)
-      : input.typesChecker.getAnyType()
+    if (symbol !== undefined) {
+      memo.typesTypeOfDefault = input.typesChecker.getTypeOfSymbol(symbol)
+    } else {
+      memo.typesTypeOfDefault = input.typesChecker.getAnyType()
+    }
   }
   return memo.typesTypeOfDefault
 }
@@ -249,7 +258,7 @@ function getImplExportEqualsIsExportDefault(input: DisagreementAnalysis, memo: A
       memo.implExportEqualsIsExportDefault = false
     } else {
       const decl = exportEquals.declarations[0]
-      if (ts.isExportAssignment(decl) && decl.expression) {
+      if (ts.isExportAssignment(decl)) {
         const target = decl.expression
         if (isModuleExports(target) || isExportsDefault(target)) {
           memo.implExportEqualsIsExportDefault = true
@@ -291,7 +300,6 @@ function isExportsDefault(target: ts.Expression): boolean {
       ts.isIdentifier(target.expression) &&
       target.expression.text === 'exports') ||
     (ts.isElementAccessExpression(target) &&
-      target.argumentExpression &&
       ts.isStringLiteralLike(target.argumentExpression) &&
       target.argumentExpression.text === 'default' &&
       ts.isIdentifier(target.expression) &&

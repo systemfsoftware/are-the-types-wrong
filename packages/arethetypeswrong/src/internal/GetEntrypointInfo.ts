@@ -12,7 +12,7 @@ import type {
   ResolutionOption,
 } from '../Types.js'
 import type { TypesCompanionInfo } from '../TypesCompanion.js'
-import { allBuildTools, getResolutionKinds } from '../Utils.js'
+import { allBuildTools, getResolutionKinds, isNonEmptyString } from '../Utils.js'
 import { type CompilerHost, type CompilerHosts } from './MultiCompilerHost.js'
 
 const extensions = new Set(['.jsx', '.tsx', '.js', '.ts', '.mjs', '.cjs', '.mts', '.cjs'])
@@ -21,11 +21,11 @@ function getEntrypoints(fs: Package, exportsObject: unknown, options: CheckPacka
   if (options?.entrypoints) {
     return options.entrypoints.map((e) => formatEntrypointString(e, fs.packageName))
   }
-  if (exportsObject === undefined && fs) {
+  if (exportsObject === undefined) {
     const rootDir = `/node_modules/${fs.packageName}`
     const proxies = getProxyDirectories(rootDir, fs)
     if (proxies.length === 0) {
-      if (options?.entrypointsLegacy) {
+      if (options?.entrypointsLegacy === true) {
         return fs
           .listFiles()
           .filter((f) => !ts.isDeclarationFileName(f) && extensions.has(f.slice(f.lastIndexOf('.'))))
@@ -43,11 +43,12 @@ function getEntrypoints(fs: Package, exportsObject: unknown, options: CheckPacka
     ...detectedSubpaths,
     ...(options?.includeEntrypoints?.map((e) => formatEntrypointString(e, fs.packageName)) ?? []),
   ])
-  if (!options?.excludeEntrypoints) {
+  const excludeEntrypoints = options?.excludeEntrypoints
+  if (excludeEntrypoints === undefined) {
     return included
   }
   return included.filter((entrypoint) => {
-    return !options?.excludeEntrypoints?.some((exclusion) => {
+    return !excludeEntrypoints.some((exclusion) => {
       if (typeof exclusion === 'string') {
         return formatEntrypointString(exclusion, fs.packageName) === entrypoint
       }
@@ -57,15 +58,17 @@ function getEntrypoints(fs: Package, exportsObject: unknown, options: CheckPacka
 }
 
 function formatEntrypointString(path: string, packageName: string) {
-  return (
-    path === '.' || path.startsWith('./')
-      ? path
-      : path === packageName
-      ? '.'
-      : path.startsWith(`${packageName}/`)
-      ? `.${path.slice(packageName.length)}`
-      : `./${path}`
-  ).trim()
+  let formatted: string
+  if (path === '.' || path.startsWith('./')) {
+    formatted = path
+  } else if (path === packageName) {
+    formatted = '.'
+  } else if (path.startsWith(`${packageName}/`)) {
+    formatted = `.${path.slice(packageName.length)}`
+  } else {
+    formatted = `./${path}`
+  }
+  return formatted.trim()
 }
 
 function getSubpaths(exportsObject: unknown): string[] {
@@ -165,8 +168,8 @@ export const getEntrypointInfo = (
       result[entrypoint] = {
         subpath: entrypoint,
         resolutions,
-        hasTypes: Object.values(resolutions).some((r) => r.resolution?.isTypeScript),
-        isWildcard: !!resolutions.bundler.isWildcard,
+        hasTypes: Object.values(resolutions).some((r) => r.resolution?.isTypeScript === true),
+        isWildcard: resolutions.bundler.isWildcard === true,
       }
     }
     return result
@@ -183,17 +186,24 @@ const getEntrypointResolution = (
       return { name: entrypoint, resolutionKind, isWildcard: true }
     }
     const moduleSpecifier = packageName + entrypoint.substring(1)
-    const importingFileName = resolutionKind === 'node16-esm' ? '/index.mts' : '/index.ts'
-    const resolutionMode = resolutionKind === 'node16-esm'
-      ? ts.ModuleKind.ESNext
-      : resolutionKind === 'node16-cjs'
-      ? ts.ModuleKind.CommonJS
-      : undefined
+    let importingFileName: string
+    if (resolutionKind === 'node16-esm') {
+      importingFileName = '/index.mts'
+    } else {
+      importingFileName = '/index.ts'
+    }
+    let resolutionMode: ts.ModuleKind.ESNext | ts.ModuleKind.CommonJS | undefined
+    if (resolutionKind === 'node16-esm') {
+      resolutionMode = ts.ModuleKind.ESNext
+    } else if (resolutionKind === 'node16-cjs') {
+      resolutionMode = ts.ModuleKind.CommonJS
+    }
     const resolution = tryResolve()
     const implementationResolution = tryResolve(true)
-    const files = resolution
-      ? (yield* host.createPrimaryProgram(resolution.fileName)).getSourceFiles().map((f) => f.fileName)
-      : undefined
+    let files: string[] | undefined
+    if (resolution !== undefined) {
+      files = (yield* host.createPrimaryProgram(resolution.fileName)).getSourceFiles().map((f) => f.fileName)
+    }
 
     return {
       name: entrypoint,
@@ -210,15 +220,19 @@ const getEntrypointResolution = (
         resolutionMode,
         noDtsResolution,
       )
-      const fileName = resolution.resolvedModule?.resolvedFileName
-      if (!fileName) {
+      const resolvedModule = resolution.resolvedModule
+      if (resolvedModule === undefined) {
+        return undefined
+      }
+      const fileName = resolvedModule.resolvedFileName
+      if (!isNonEmptyString(fileName)) {
         return undefined
       }
 
       return {
         fileName,
-        isJson: resolution.resolvedModule.extension === ts.Extension.Json,
-        isTypeScript: ts.hasTSFileExtension(resolution.resolvedModule.resolvedFileName),
+        isJson: resolvedModule.extension === ts.Extension.Json,
+        isTypeScript: ts.hasTSFileExtension(resolvedModule.resolvedFileName),
         trace,
       }
     }
@@ -253,7 +267,7 @@ export function getModuleKinds(
     for (const entrypoint of Object.values(entrypoints)) {
       const resolution = entrypoint.resolutions[resolutionKind]
       for (const fileName of resolution.files ?? []) {
-        if (!result[fileName]) {
+        if (!Object.hasOwn(result, fileName)) {
           const moduleKind = host.getModuleKindForFile(fileName)
           if (moduleKind) {
             result[fileName] = moduleKind
@@ -262,7 +276,7 @@ export function getModuleKinds(
       }
       if (resolution.implementationResolution) {
         const fileName = resolution.implementationResolution.fileName
-        if (!result[fileName]) {
+        if (!Object.hasOwn(result, fileName)) {
           const moduleKind = host.getModuleKindForFile(fileName)
           if (moduleKind) {
             result[fileName] = moduleKind

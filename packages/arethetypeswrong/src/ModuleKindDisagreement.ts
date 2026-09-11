@@ -1,6 +1,7 @@
 import { CommonJSModuleKind, ESNextModuleKind } from './ModuleKind.js'
 import type { ModuleKind } from './Problem.schema.js'
 import type { FalseCJSProblem, FalseESMProblem } from './Problem.schema.js'
+import { isNonEmptyString } from './Utils.js'
 
 export interface ModuleKindDisagreementInput {
   readonly typesFileName: string | undefined
@@ -13,7 +14,12 @@ export const detectModuleKindDisagreement = (
   input: ModuleKindDisagreementInput,
 ): FalseESMProblem | FalseCJSProblem | undefined => {
   const { typesFileName, implementationFileName, typesModuleKind, implementationModuleKind } = input
-  if (!typesFileName || !implementationFileName || !typesModuleKind || !implementationModuleKind) {
+  if (
+    !isNonEmptyString(typesFileName) ||
+    !isNonEmptyString(implementationFileName) ||
+    !typesModuleKind ||
+    !implementationModuleKind
+  ) {
     return undefined
   }
   if (

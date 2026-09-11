@@ -40,7 +40,10 @@ function getHomepage(pkg: Package, packageName: string): string | undefined {
   if (typeof packageJson !== 'object' || packageJson === null || !('homepage' in packageJson)) {
     return undefined
   }
-  return typeof packageJson.homepage === 'string' ? packageJson.homepage : undefined
+  if (typeof packageJson.homepage === 'string') {
+    return packageJson.homepage
+  }
+  return undefined
 }
 
 function getDevDependencies(pkg: Package, packageName: string): { devDependencies?: Record<string, string> } {
@@ -48,26 +51,38 @@ function getDevDependencies(pkg: Package, packageName: string): { devDependencie
   if (typeof packageJson !== 'object' || packageJson === null || !('devDependencies' in packageJson)) {
     return {}
   }
-  return isStringRecord(packageJson.devDependencies) ? { devDependencies: packageJson.devDependencies } : {}
+  if (isStringRecord(packageJson.devDependencies)) {
+    return { devDependencies: packageJson.devDependencies }
+  }
+  return {}
 }
 export const checkPackage = (
   input: Package | PackageWithCompanion,
   options?: CheckPackageOptions,
 ): Effect.Effect<CheckResult, Error> =>
   Effect.gen(function*() {
-    const pkg: Package = isPackageWithCompanion(input) ? input.pkg : input
-    const companion: TypesCompanionInfo | undefined = isPackageWithCompanion(input) ? input.companion : undefined
-    const types: AnalysisTypes | false = companion
-      ? {
+    let pkg: Package
+    let companion: TypesCompanionInfo | undefined
+    if (isPackageWithCompanion(input)) {
+      pkg = input.pkg
+      companion = input.companion
+    } else {
+      pkg = input
+    }
+    let types: AnalysisTypes | false
+    if (companion !== undefined) {
+      types = {
         kind: '@types',
         ...companion,
         definitelyTypedUrl: getHomepage(pkg, companion.packageName),
       }
-      : containsTypes(pkg)
-      ? { kind: 'included' }
-      : false
+    } else if (containsTypes(pkg)) {
+      types = { kind: 'included' }
+    } else {
+      types = false
+    }
     const { packageName, packageVersion } = pkg
-    if (!types) {
+    if (types === false) {
       return { packageName, packageVersion, types }
     }
 
@@ -107,7 +122,7 @@ export const checkPackage = (
             resolutionOption: getResolutionOption(analysis.resolutionKind),
             fileName: undefined,
           }
-          if (check.enumerateFiles) {
+          if (check.enumerateFiles === true) {
             for (const fileName of analysis.files ?? []) {
               yield* runCheck(check, { ...context, fileName }, analysis)
             }
@@ -150,9 +165,20 @@ export const checkPackage = (
           return
         }
         const indices: number[] = []
-        const gathered = check.gather ? yield* check.gather(dependencies, context) : undefined
+        let gathered: unknown
+        if (check.gather !== undefined) {
+          gathered = yield* check.gather(dependencies, context)
+        }
         const checkProblems = check.execute(dependencies, context, gathered)
-        for (const problem of Array.isArray(checkProblems) ? checkProblems : checkProblems ? [checkProblems] : []) {
+        let checkProblemList: Problem[]
+        if (Array.isArray(checkProblems)) {
+          checkProblemList = checkProblems
+        } else if (checkProblems !== undefined) {
+          checkProblemList = [checkProblems]
+        } else {
+          checkProblemList = []
+        }
+        for (const problem of checkProblemList) {
           indices.push(problems.length)
           problems.push(problem)
         }

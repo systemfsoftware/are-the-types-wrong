@@ -20,7 +20,12 @@ export const parsePackageSpec = (input: string): Result.Result<ParsedPackageSpec
   } else {
     name = input.slice(0, i)
   }
-  const version = i === -1 ? '' : input.slice(i + 1)
+  let version: string
+  if (i === -1) {
+    version = ''
+  } else {
+    version = input.slice(i + 1)
+  }
 
   if (validatePackageName(name).errors) {
     return Result.fail(new PackageSpecParseError({ message: 'Invalid package name' }))
@@ -28,10 +33,10 @@ export const parsePackageSpec = (input: string): Result.Result<ParsedPackageSpec
   if (!version) {
     return Result.succeed({ versionKind: 'none' as const, name, version: '' })
   }
-  if (valid(version)) {
+  if (valid(version) !== null) {
     return Result.succeed({ versionKind: 'exact' as const, name, version })
   }
-  if (validRange(version)) {
+  if (validRange(version) !== null) {
     return Result.succeed({ versionKind: 'range' as const, name, version })
   }
   return Result.succeed({ versionKind: 'tag' as const, name, version })

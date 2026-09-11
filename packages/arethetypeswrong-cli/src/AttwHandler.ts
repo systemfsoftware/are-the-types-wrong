@@ -10,15 +10,18 @@ import type { CliRequest } from './AttwExecutor.js'
 import { runAttw } from './AttwExecutor.js'
 import { CliFormat, CliProfile } from './ProblemUtils.js'
 
+const defaultFormat: typeof CliFormat[number] = 'auto'
+const defaultProfile: typeof CliProfile[number] = 'strict'
+
 const formatOptions = (): Flag.Flag<typeof CliFormat[number]> =>
   Flag.choice('format', CliFormat).pipe(
     Flag.withAlias('f'),
-    Flag.withDefault('auto' as typeof CliFormat[number]),
+    Flag.withDefault(defaultFormat),
   )
 
 const profileOptions = (): Flag.Flag<typeof CliProfile[number]> =>
   Flag.choice('profile', CliProfile).pipe(
-    Flag.withDefault('strict' as typeof CliProfile[number]),
+    Flag.withDefault(defaultProfile),
   )
 
 /**
@@ -55,7 +58,10 @@ const registryOptions = (): Flag.Flag<string> =>
     ),
   )
 
-const unwrap = <A>(opt: Option.Option<A>): A | undefined => Option.isSome(opt) ? opt.value : undefined
+const unwrap = <A>(opt: Option.Option<A>): A | undefined => {
+  if (Option.isSome(opt)) return opt.value
+  return undefined
+}
 
 export const attwCommand = Command.make(
   'attw',

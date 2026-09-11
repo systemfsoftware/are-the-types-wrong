@@ -1,7 +1,8 @@
 import { Gherkin, Given, it, layer, makeFeature, Then, When } from '@systemfsoftware/effect-gherkin-spec'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { expect } from 'vitest'
 
+import { analysisOutput, entrypointsOutput, packageNameOutput } from './__fixtures__/CliOutput.schema.js'
 import { Container, ContainerLive, fixtureDir, WORKDIR } from './__fixtures__/ContainerAdapter.js'
 
 const Feature = makeFeature({ it, layer })
@@ -84,10 +85,7 @@ Feature('Analyzing published packages with the installed binary')
           })),
         Then('the output has analysis and problems keys')((s) => {
           expect(s.result.exitCode).not.toBe(0)
-          const parsed = JSON.parse(s.result.stdout) as {
-            analysis: { packageName?: string }
-            problems?: unknown
-          }
+          const parsed = Schema.decodeUnknownSync(analysisOutput)(s.result.stdout)
           expect(parsed.analysis.packageName).toBe('untyped-resolution')
           expect(parsed.problems).toBeDefined()
         }),
@@ -115,14 +113,10 @@ Feature('Analyzing published packages with the installed binary')
             }),
         ),
         Then('the restricted analysis has fewer entrypoints')((s) => {
-          const fullKeys = Object.keys(
-            (JSON.parse(s.results.full.stdout) as { analysis: { entrypoints: Record<string, unknown> } }).analysis
-              .entrypoints,
-          )
-          const restrictedKeys = Object.keys(
-            (JSON.parse(s.results.restricted.stdout) as { analysis: { entrypoints: Record<string, unknown> } })
-              .analysis.entrypoints,
-          )
+          const full = Schema.decodeUnknownSync(entrypointsOutput)(s.results.full.stdout)
+          const restricted = Schema.decodeUnknownSync(entrypointsOutput)(s.results.restricted.stdout)
+          const fullKeys = Object.keys(full.analysis.entrypoints)
+          const restrictedKeys = Object.keys(restricted.analysis.entrypoints)
           expect(restrictedKeys.length).toBeLessThan(fullKeys.length)
         }),
       ),
@@ -142,7 +136,7 @@ Feature('Analyzing published packages with the installed binary')
             )
           })),
         Then('the macros entrypoint is absent from the analysis')((s) => {
-          const parsed = JSON.parse(s.result.stdout) as { analysis: { entrypoints: Record<string, unknown> } }
+          const parsed = Schema.decodeUnknownSync(entrypointsOutput)(s.result.stdout)
           // KTD4 recipe exposes './macros'; the CLI normalizes 'macros' to './macros', so check both forms
           expect(parsed.analysis.entrypoints).not.toHaveProperty('macros')
           expect(parsed.analysis.entrypoints).not.toHaveProperty('./macros')
@@ -168,7 +162,7 @@ Feature('Analyzing published packages with the installed binary')
           })),
         Then('the analysis names the fixture package')((s) => {
           expect([0, 1]).toContain(s.result.exitCode)
-          const parsed = JSON.parse(s.result.stdout) as { analysis: { packageName: string } }
+          const parsed = Schema.decodeUnknownSync(packageNameOutput)(s.result.stdout)
           expect(parsed.analysis.packageName).toBe('attw-fixture-pkg')
         }),
       ),
@@ -194,7 +188,7 @@ Feature('Analyzing published packages with the installed binary')
         Then('the analysis names the packed package')((s) => {
           expect(s.setup.exitCode).toBe(0)
           expect([0, 1]).toContain(s.result.exitCode)
-          const parsed = JSON.parse(s.result.stdout) as { analysis: { packageName: string } }
+          const parsed = Schema.decodeUnknownSync(packageNameOutput)(s.result.stdout)
           expect(parsed.analysis.packageName).toBe('attw-pack-test')
         }),
       ),

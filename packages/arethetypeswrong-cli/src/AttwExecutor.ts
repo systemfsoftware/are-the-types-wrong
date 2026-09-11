@@ -52,18 +52,19 @@ export const prepareAnalysis = (
   ignoreRules: readonly string[]
   ignoreResolutions: readonly ResolutionKind[]
 } => {
-  const profileDecision = request.profile !== undefined
-    ? applyProfile(
-      new ApplyProfileCommand(
-        request.ignoreResolutions === undefined
-          ? { profileName: request.profile }
-          : { profileName: request.profile, ignoreResolutions: request.ignoreResolutions },
-      ),
-    )
-    : undefined
-  const profileApplied = profileDecision !== undefined
-    ? { ...request, ignoreResolutions: profileDecision.ignoreResolutions }
-    : request
+  let profileApplied: CliRequest = request
+  if (request.profile !== undefined) {
+    const profileName = request.profile
+    const ignoreResolutions = request.ignoreResolutions
+    let profileCommand: ApplyProfileCommand
+    if (ignoreResolutions === undefined) {
+      profileCommand = new ApplyProfileCommand({ profileName })
+    } else {
+      profileCommand = new ApplyProfileCommand({ profileName, ignoreResolutions })
+    }
+    const profileDecision = applyProfile(profileCommand)
+    profileApplied = { ...request, ignoreResolutions: profileDecision.ignoreResolutions }
+  }
   const ignoreRules = profileApplied.ignoreRules ?? []
   const ignoreResolutions = profileApplied.ignoreResolutions ?? []
   return { result, ignoreRules, ignoreResolutions }
@@ -79,7 +80,7 @@ const acquireTarball = (
   Effect.gen(function*() {
     const fs = yield* Filesystem
     const target = request.fileOrDirectory
-    if (request.pack) {
+    if (request.pack === true) {
       const packRunner = yield* PackRunner
       const packed = yield* packRunner.pack(target).pipe(Effect.orDie)
       const tarballPath = fs.join(target, packed.tarballPath)
@@ -97,27 +98,30 @@ const acquireTarball = (
         ref: { packageName: target, packageVersion: 'local', tarballUrl: `file://${target}` },
       }
     }
-    const npmTarget = request.fromNpm
-      ? target
-      : /^[a-z@]/.test(target) && !target.includes('/')
-      ? target
-      : `file:${target}`
+    let npmTarget: string
+    if (request.fromNpm === true) {
+      npmTarget = target
+    } else if (/^[a-z@]/.test(target) && !target.includes('/')) {
+      npmTarget = target
+    } else {
+      npmTarget = `file:${target}`
+    }
     const isNpmSpec = !npmTarget.startsWith('file:')
     if (isNpmSpec) {
-      const [name, version = 'latest'] = npmTarget.split('@').filter(Boolean)
+      const [name = npmTarget, version = 'latest'] = npmTarget.split('@').filter(Boolean)
       const registryJson = yield* Effect.tryPromise({
         try: async (): Promise<unknown> => {
           const res = await fetch(
-            `${request.registry.replace(/\/$/, '')}/${encodeURIComponent(name ?? npmTarget)}/${version}`,
+            `${request.registry.replace(/\/$/, '')}/${encodeURIComponent(name)}/${version}`,
           )
           if (res.status === 404) throw new RegistryFetchError({ message: `Package not found: ${npmTarget}` })
           if (!res.ok) throw new RegistryFetchError({ message: `Registry returned ${res.status} for ${npmTarget}` })
           return await res.json()
         },
-        catch: (e) =>
-          e instanceof RegistryFetchError
-            ? e
-            : new RegistryFetchError({ message: `Registry request failed for ${npmTarget}`, cause: e }),
+        catch: (e) => {
+          if (e instanceof RegistryFetchError) return e
+          return new RegistryFetchError({ message: `Registry request failed for ${npmTarget}`, cause: e })
+        },
       }).pipe(Effect.orDie)
       const registry = yield* S.decodeUnknownEffect(RegistryDocument)(registryJson).pipe(Effect.orDie)
       const tarballRes = yield* Effect.tryPromise({
@@ -126,10 +130,10 @@ const acquireTarball = (
           if (!res.ok) throw new RegistryFetchError({ message: `Tarball fetch returned ${res.status}` })
           return new Uint8Array(await res.arrayBuffer())
         },
-        catch: (e) =>
-          e instanceof RegistryFetchError
-            ? e
-            : new RegistryFetchError({ message: `Tarball fetch failed for ${npmTarget}`, cause: e }),
+        catch: (e) => {
+          if (e instanceof RegistryFetchError) return e
+          return new RegistryFetchError({ message: `Tarball fetch failed for ${npmTarget}`, cause: e })
+        },
       }).pipe(Effect.orDie)
       return {
         bytes: tarballRes,
@@ -142,6 +146,11 @@ const acquireTarball = (
       ref: { packageName: target, packageVersion: 'local', tarballUrl: `file://${target}` },
     }
   })
+
+const copyIfNonEmpty = (values: readonly string[] | undefined): string[] | undefined => {
+  if (values === undefined || values.length === 0) return undefined
+  return [...values]
+}
 
 export const runAttw = (
   request: CliRequest,
@@ -156,9 +165,9 @@ export const runAttw = (
     const checkEffect: Effect.Effect<CheckResult, never, never> = Effect.gen(function*() {
       const checkPackage = yield* CheckPackage
       return yield* checkPackage.execute(request.fileOrDirectory, {
-        entrypoints: request.entrypoints?.length ? [...request.entrypoints] : undefined,
-        includeEntrypoints: request.includeEntrypoints?.length ? [...request.includeEntrypoints] : undefined,
-        excludeEntrypoints: request.excludeEntrypoints?.length ? [...request.excludeEntrypoints] : undefined,
+        entrypoints: copyIfNonEmpty(request.entrypoints),
+        includeEntrypoints: copyIfNonEmpty(request.includeEntrypoints),
+        excludeEntrypoints: copyIfNonEmpty(request.excludeEntrypoints),
         entrypointsLegacy: request.entrypointsLegacy,
       })
     }).pipe(
@@ -180,7 +189,7 @@ export const runAttw = (
         ignoreResolutions: [...prepared.ignoreResolutions],
       }),
     )
-    if (!request.quiet) {
+    if (request.quiet !== true) {
       const output = renderAnalysis(prepared.result, {
         format: request.format ?? 'auto',
         color: request.color ?? true,

@@ -17,16 +17,21 @@ export default defineCheck({
     if (!sourceFile) {
       return
     }
-    const syntaxImpliedModuleKind = sourceFile.externalModuleIndicator
-      ? ts.ModuleKind.ESNext
-      : sourceFile.commonJsModuleIndicator
-      ? ts.ModuleKind.CommonJS
-      : undefined
+    let syntaxImpliedModuleKind: ts.ModuleKind.ESNext | ts.ModuleKind.CommonJS | undefined
+    if (sourceFile.externalModuleIndicator !== undefined) {
+      syntaxImpliedModuleKind = ts.ModuleKind.ESNext
+    } else if (sourceFile.commonJsModuleIndicator !== undefined) {
+      syntaxImpliedModuleKind = ts.ModuleKind.CommonJS
+    }
     if (syntaxImpliedModuleKind !== undefined && expectedModuleKind.detectedKind !== syntaxImpliedModuleKind) {
       // Value cannot be `true` because we set `moduleDetection: "legacy"`
-      const syntax = sourceFile.externalModuleIndicator !== undefined && sourceFile.externalModuleIndicator !== true
-        ? sourceFile.externalModuleIndicator
-        : sourceFile.commonJsModuleIndicator
+      const externalModuleIndicator = sourceFile.externalModuleIndicator
+      let syntax: ts.Node | undefined
+      if (externalModuleIndicator !== undefined && externalModuleIndicator !== true) {
+        syntax = externalModuleIndicator
+      } else {
+        syntax = sourceFile.commonJsModuleIndicator
+      }
       if (syntax === undefined) {
         return
       }

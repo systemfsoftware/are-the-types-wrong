@@ -25,9 +25,6 @@ function* extractDestructedNames(node: ts.BindingName): Iterable<string> {
         yield* extractDestructedNames(element.name)
       }
       break
-
-    default:
-      node satisfies never
   }
 }
 
@@ -59,7 +56,7 @@ export function getEsmModuleBindings(sourceText: string): Exports {
   }
 
   function collectExportAssignment(statement: ts.ExportAssignment): void {
-    if (!statement.isExportEquals) exports.push('default')
+    if (statement.isExportEquals !== true) exports.push('default')
   }
 
   function collectClassOrFunction(declaration: ts.ClassDeclaration | ts.FunctionDeclaration): void {

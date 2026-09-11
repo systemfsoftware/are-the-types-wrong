@@ -10,37 +10,39 @@ export const resolutionKindOrder: readonly ResolutionKind[] = [
   'bundler',
 ] as const
 
+const emojiSymbols: Record<Problem['kind'], string> = {
+  NoResolution: '✘',
+  UntypedResolution: '◌',
+  FalseESM: '✘',
+  FalseCJS: '✘',
+  CJSResolvesToESM: '✘',
+  NamedExports: '✘',
+  FallbackCondition: '⚠',
+  FalseExportDefault: '✘',
+  MissingExportEquals: '✘',
+  UnexpectedModuleSyntax: '✘',
+  InternalResolutionError: '✘',
+  CJSOnlyExportsDefault: '✘',
+}
+
+const textSymbols: Record<Problem['kind'], string> = {
+  NoResolution: 'X',
+  UntypedResolution: '-',
+  FalseESM: 'X',
+  FalseCJS: 'X',
+  CJSResolvesToESM: 'X',
+  NamedExports: 'X',
+  FallbackCondition: '!',
+  FalseExportDefault: 'X',
+  MissingExportEquals: 'X',
+  UnexpectedModuleSyntax: 'X',
+  InternalResolutionError: 'X',
+  CJSOnlyExportsDefault: 'X',
+}
+
 export const symbolForProblem = (p: Problem, useEmoji: boolean): string => {
-  const map = useEmoji
-    ? {
-      NoResolution: '✘',
-      UntypedResolution: '◌',
-      FalseESM: '✘',
-      FalseCJS: '✘',
-      CJSResolvesToESM: '✘',
-      NamedExports: '✘',
-      FallbackCondition: '⚠',
-      FalseExportDefault: '✘',
-      MissingExportEquals: '✘',
-      UnexpectedModuleSyntax: '✘',
-      InternalResolutionError: '✘',
-      CJSOnlyExportsDefault: '✘',
-    } as const
-    : {
-      NoResolution: 'X',
-      UntypedResolution: '-',
-      FalseESM: 'X',
-      FalseCJS: 'X',
-      CJSResolvesToESM: 'X',
-      NamedExports: 'X',
-      FallbackCondition: '!',
-      FalseExportDefault: 'X',
-      MissingExportEquals: 'X',
-      UnexpectedModuleSyntax: 'X',
-      InternalResolutionError: 'X',
-      CJSOnlyExportsDefault: 'X',
-    } as const
-  return map[p.kind] ?? '?'
+  if (useEmoji) return emojiSymbols[p.kind]
+  return textSymbols[p.kind]
 }
 
 export type RenderOptions = {
@@ -65,8 +67,18 @@ export const partitionProblemsByCell = (
     for (const resolutionKind of resolutionKindOrder) cells.set(cellKey(entrypoint, resolutionKind), [])
   }
   for (const problem of problems) {
-    const axisEntrypoints = 'entrypoint' in problem ? [problem.entrypoint] : entrypoints
-    const axisKinds = 'resolutionKind' in problem ? [problem.resolutionKind] : resolutionKindOrder
+    let axisEntrypoints: readonly string[]
+    if ('entrypoint' in problem) {
+      axisEntrypoints = [problem.entrypoint]
+    } else {
+      axisEntrypoints = entrypoints
+    }
+    let axisKinds: readonly ResolutionKind[]
+    if ('resolutionKind' in problem) {
+      axisKinds = [problem.resolutionKind]
+    } else {
+      axisKinds = resolutionKindOrder
+    }
     for (const entrypoint of axisEntrypoints) {
       for (const resolutionKind of axisKinds) cells.get(cellKey(entrypoint, resolutionKind))?.push(problem)
     }
@@ -96,7 +108,11 @@ export const renderTypedAnalysis = (
     for (const rk of resolutionKindOrder) {
       const relevant = problemsForCell(cells, entrypoint, rk)
       if (relevant.length === 0) {
-        row.push(opts.useEmoji ? '✔' : 'OK')
+        if (opts.useEmoji) {
+          row.push('✔')
+        } else {
+          row.push('OK')
+        }
         continue
       }
       const symbols = relevant.map((p) => symbolForProblem(p, opts.useEmoji)).join('')
@@ -104,7 +120,8 @@ export const renderTypedAnalysis = (
     }
     return row.map((c) => colorizeCell(c, opts.color, annotations))
   })
-  return opts.flipped
-    ? renderFlippedTable(header, rows)
-    : renderTable(header, rows)
+  if (opts.flipped) {
+    return renderFlippedTable(header, rows)
+  }
+  return renderTable(header, rows)
 }

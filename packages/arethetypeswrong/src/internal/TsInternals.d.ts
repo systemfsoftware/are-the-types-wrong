@@ -1,10 +1,7 @@
-// oxlint-disable typescript/no-wrapper-object-types -- this file mirrors TypeScript's own
-// ambient declarations, which use `Symbol` for `ts.Symbol` and `String`/`Number` for branded strings.
-// The wrapper-object rule is for application code, not for compiler-type augmentations.
 // Ambient augmentation for the TypeScript compiler's internal API. This file is the sole
 // declaration site for the small internal surface this package calls. Every member here must
 // exist in the installed `typescript@6.0.3` runtime; keep the list minimal.
-import 'typescript'
+import type * as ts from 'typescript'
 
 declare module 'typescript' {
   // Path/string utilities
@@ -95,7 +92,7 @@ declare module 'typescript' {
   }
   /** @internal */
   export interface SourceFile {
-    symbol: Symbol
+    symbol: ts.Symbol
     locals?: SymbolTable
     imports?: readonly StringLiteralLike[]
     externalModuleIndicator?: Node | true
@@ -107,9 +104,9 @@ declare module 'typescript' {
   // TypeChecker internals
   /** @internal */
   export interface TypeChecker {
-    resolveExternalModuleSymbol(symbol: Symbol): Symbol
-    getExportsAndPropertiesOfModule(moduleSymbol: Symbol): Symbol[]
-    getSymbolFlags(symbol: Symbol): SymbolFlags
+    resolveExternalModuleSymbol(symbol: ts.Symbol): ts.Symbol
+    getExportsAndPropertiesOfModule(moduleSymbol: ts.Symbol): ts.Symbol[]
+    getSymbolFlags(symbol: ts.Symbol, excludeTypeOnlyMeanings: boolean): SymbolFlags
   }
 
   // CompilerOptions extra

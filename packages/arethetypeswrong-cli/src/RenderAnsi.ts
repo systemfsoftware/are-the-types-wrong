@@ -35,9 +35,9 @@ const colorCode = (c: AnsiColor): string => {
 }
 
 export const annotate = (text: string, anno: AnsiAnnotation): string => {
-  if (anno.color === undefined && !anno.bold) return text
+  if (anno.color === undefined && anno.bold !== true) return text
   const parts: string[] = []
-  if (anno.bold) parts.push('1')
+  if (anno.bold === true) parts.push('1')
   if (anno.color !== undefined) parts.push(colorCode(anno.color))
   return `\u001b[${parts.join(';')}m${text}\u001b[0m`
 }

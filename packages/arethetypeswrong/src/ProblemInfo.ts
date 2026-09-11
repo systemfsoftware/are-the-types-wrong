@@ -159,9 +159,8 @@ const problemAffectsEntrypoint = (
   analysis: Analysis,
 ): boolean => {
   const index = getProblemIndex(analysis, problem)
-  const resolutions = analysis.entrypoints[entrypoint]?.resolutions
-  if (!resolutions) return false
-  for (const resolution of Object.values(resolutions)) {
+  if (!Object.hasOwn(analysis.entrypoints, entrypoint)) return false
+  for (const resolution of Object.values(analysis.entrypoints[entrypoint].resolutions)) {
     const visible = resolution.visibleProblems
     if (visible !== undefined && visible.includes(index)) return true
   }

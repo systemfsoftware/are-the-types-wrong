@@ -4,7 +4,7 @@ import { layer as nodeFileSystemLayer } from '@effect/platform-node-shared/NodeF
 import { layer as nodePathLayer } from '@effect/platform-node-shared/NodePath'
 import { layer as nodeStdioLayer } from '@effect/platform-node-shared/NodeStdio'
 import { layer as nodeTerminalLayer } from '@effect/platform-node-shared/NodeTerminal'
-import { runMain as nodeRunMain } from '@effect/platform-node/NodeRuntime'
+import { runMain } from '@effect/platform-node/NodeRuntime'
 import { Effect, Layer } from 'effect'
 import { layer as cliConfigLayerFactory } from 'effect/unstable/cli/CliConfig'
 import * as Command from 'effect/unstable/cli/Command'
@@ -39,4 +39,4 @@ const provided = program.pipe(
   Effect.provide(Layer.provideMerge(Layer.mergeAll(cliLayer, cliConfigLayer), nodeRuntime)),
 )
 
-nodeRunMain(provided)
+runMain(provided)

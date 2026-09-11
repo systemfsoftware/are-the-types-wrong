@@ -7,7 +7,10 @@ export function isAccessExpression(node: ts.Node): node is ts.AccessExpression {
 
 /** @internal */
 export function accessExpressionNameNode(node: ts.AccessExpression): ts.MemberName | ts.Expression {
-  return ts.isPropertyAccessExpression(node) ? node.name : node.argumentExpression
+  if (ts.isPropertyAccessExpression(node)) {
+    return node.name
+  }
+  return node.argumentExpression
 }
 
 /** @internal */
@@ -33,12 +36,17 @@ export function isFunctionExpressionOrArrowFunction(
 
 /** @internal */
 export function isFunctionBlock(node: ts.Node): node is ts.Block {
-  return ts.isBlock(node) && !!node.parent && ts.isFunctionLike(node.parent)
+  return ts.isBlock(node) && ts.isFunctionLike(node.parent)
 }
 
 /** @internal */
 export function hasModifier(node: ts.Node, kind: ts.SyntaxKind.ExportKeyword | ts.SyntaxKind.DefaultKeyword): boolean {
-  return ts.canHaveModifiers(node) && !!ts.getModifiers(node)?.some((modifier) => modifier.kind === kind)
+  return ts.canHaveModifiers(node) && (ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) ?? false)
+}
+
+/** @internal */
+export function getSourceFileSymbol(sourceFile: ts.SourceFile): ts.Symbol | undefined {
+  return sourceFile.symbol
 }
 
 /** @internal */

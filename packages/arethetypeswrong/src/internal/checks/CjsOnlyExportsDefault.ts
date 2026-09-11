@@ -1,5 +1,7 @@
 import ts from 'typescript'
+import { isNonEmptyString } from '../../Utils.js'
 import { defineCheck } from '../DefineCheck.js'
+import { getSourceFileSymbol } from '../TsCompat.js'
 
 /** @internal */
 export default defineCheck({
@@ -10,7 +12,7 @@ export default defineCheck({
     return [implementationFileName, resolutionKind]
   },
   execute: ([implementationFileName, resolutionKind], context) => {
-    if (!implementationFileName) {
+    if (!isNonEmptyString(implementationFileName)) {
       return
     }
     if (resolutionKind === 'node10' || resolutionKind === 'node16-cjs') {
@@ -37,14 +39,18 @@ export default defineCheck({
     if (!sourceFile) {
       return
     }
+    const symbolExports = getSourceFileSymbol(sourceFile)?.exports
+    if (symbolExports === undefined) {
+      return
+    }
     if (
-      !sourceFile.externalModuleIndicator &&
+      sourceFile.externalModuleIndicator === undefined &&
       sourceFile.commonJsModuleIndicator &&
-      sourceFile.symbol?.exports?.has(ts.InternalSymbolName.Default) &&
-      sourceFile.symbol.exports.has(ts.escapeLeadingUnderscores('__esModule')) &&
-      !sourceFile.symbol.exports.has(ts.InternalSymbolName.ExportEquals)
+      symbolExports.has(ts.InternalSymbolName.Default) &&
+      symbolExports.has(ts.escapeLeadingUnderscores('__esModule')) &&
+      !symbolExports.has(ts.InternalSymbolName.ExportEquals)
     ) {
-      const defaultExport = sourceFile.symbol?.exports?.get(ts.InternalSymbolName.Default)
+      const defaultExport = symbolExports.get(ts.InternalSymbolName.Default)
       const decl = defaultExport?.declarations?.[0]
       if (decl === undefined) {
         return

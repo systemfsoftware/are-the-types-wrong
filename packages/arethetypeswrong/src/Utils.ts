@@ -42,6 +42,10 @@ export function isDefined<T>(value: T | undefined): value is T {
   return value !== undefined
 }
 
+export function isNonEmptyString(value: string | null | undefined): value is string {
+  return value !== null && value !== undefined && value !== ''
+}
+
 export function resolvedThroughFallback(traces: string[]) {
   let i = 0
   while (i < traces.length) {
@@ -80,7 +84,7 @@ export function visitResolutions(
 ) {
   for (const entrypoint of Object.values(entrypoints)) {
     for (const resolution of Object.values(entrypoint.resolutions)) {
-      if (visitor(resolution, entrypoint)) {
+      if (visitor(resolution, entrypoint) === true) {
         return
       }
     }
@@ -126,19 +130,19 @@ export function parsePackageSpec(input: string): Failable<ParsedPackageSpec> {
       error: 'Invalid package name',
     }
   }
-  if (!version) {
+  if (!isNonEmptyString(version)) {
     return {
       status: 'success',
       data: { versionKind: 'none', name, version: '' },
     }
   }
-  if (valid(version)) {
+  if (valid(version) !== null) {
     return {
       status: 'success',
       data: { versionKind: 'exact', name, version },
     }
   }
-  if (validRange(version)) {
+  if (validRange(version) !== null) {
     return {
       status: 'success',
       data: { versionKind: 'range', name, version },
