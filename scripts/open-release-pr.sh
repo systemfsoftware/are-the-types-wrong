@@ -21,7 +21,7 @@ if [ -z "$(git status --porcelain)" ]; then
   exit 0
 fi
 
-if [ -z "$(git diff --name-only "origin/$BASE" -- 'apps/*/package.json' 'packages/*/package.json')" ]; then
+if [ -z "$(git diff --name-only "origin/$BASE" -- 'apps/**/package.json' 'packages/**/package.json')" ]; then
   echo "no package.json version bumps against origin/$BASE — not opening a release PR"
   close_if_open "No package version bumps against $BASE."
   exit 0

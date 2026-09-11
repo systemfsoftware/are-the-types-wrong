@@ -39,3 +39,17 @@ Deno.test('README is never pending', async () => {
     await Deno.remove(dir, { recursive: true })
   }
 })
+
+Deno.test('YAML-quoted intent stems still count as consumed', async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    await Deno.writeTextFile(join(dir, 'force-quoted.md'), '---\n"pkg": patch\n---\n\nsummary\n')
+    await Deno.writeTextFile(
+      join(dir, 'ledger.yaml'),
+      `"pkg@1.0.1":\n  intents:\n    - "force-quoted"\n`,
+    )
+    assertEquals(await countPendingIntents(dir), 0)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
