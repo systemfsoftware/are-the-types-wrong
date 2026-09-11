@@ -31,7 +31,7 @@ Requires Node `>=24` and `typescript@^6.0.3` (the 6.x JS bridge — see [TypeScr
 
 ## Quick start
 
-Check an in-memory package:
+Check an in-memory package. `checkPackage` returns an Effect, so yield it into your own program:
 
 ```ts
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
@@ -48,18 +48,18 @@ const pkg = createPackage(
   '1.0.0',
 )
 
-const result = await Effect.runPromise(checkPackage(pkg))
+const check = Effect.gen(function*() {
+  const result = yield* checkPackage(pkg)
 
-if ('entrypoints' in result) {
-  console.log(Object.keys(result.entrypoints)) // [ "." ]
-  for (const problem of result.problems) {
-    console.error(problem.kind, problem.entrypoint)
+  if ('entrypoints' in result) {
+    return Object.keys(result.entrypoints) // [ "." ]
   }
-} else {
   // result.types === false — the package ships no type declarations
-  console.error('no types found')
-}
+  return []
+})
 ```
+
+Interpret that Effect once, at your program's edge: `yield*` it into a larger Effect, or run it with `runMain` (from `@effect/platform-node` / `@effect/platform-bun`) when the program terminates on its own.
 
 Mount the same tree on an in-memory filesystem (keys stay `/node_modules/<name>/…`):
 
@@ -73,10 +73,14 @@ const tree = {
   'index.js': 'export const x = 1',
 }
 const contents = toDirectoryJSON(tree, 'demo')
-// `contents` is a plain `Record<string, string>` like `{ '/node_modules/demo/package.json': '...' }`
-const fs = MemoryFileSystem.make(contents as never)
-const bytes = await Effect.runPromise(fs.readFile('/node_modules/demo/package.json'))
-const text = new TextDecoder().decode(bytes)
+// `contents` is a plain `Record<string, string|Uint8Array>` keyed by
+// `/node_modules/demo/…`, e.g. `'/node_modules/demo/package.json'`
+const fs = MemoryFileSystem.make(contents)
+
+const readManifest = Effect.gen(function*() {
+  const bytes = yield* fs.readFile('/node_modules/demo/package.json')
+  return new TextDecoder().decode(bytes)
+})
 ```
 
 Check a real tarball on disk:
@@ -87,21 +91,21 @@ import { createPackageFromTarballData } from '@systemfsoftware/npm-package'
 import { Effect } from 'effect'
 import { readFile } from 'node:fs/promises'
 
-const data = await readFile('./my-package-1.2.3.tgz')
-const analysis = await Effect.runPromise(checkPackage(createPackageFromTarballData(data)))
-// `analysis` is an `Analysis` (entrypoints + problems) or an `UntypedResult`
+const checkTarball = Effect.gen(function*() {
+  const data = yield* Effect.promise(() => readFile('./my-package-1.2.3.tgz'))
+  return yield* checkPackage(createPackageFromTarballData(data))
+})
+// `checkTarball` yields an `Analysis` (entrypoints + problems) or an `UntypedResult`
 ```
 
-Filter entry points:
+Filter entry points — still inside the same `Effect.gen`:
 
 ```ts
-const result = await Effect.runPromise(
-  checkPackage(pkg, {
-    includeEntrypoints: ['./utils'],
-    excludeEntrypoints: [/^.\/internal\//],
-    entrypoints: ['.', './cli'], // exhaustive override
-  }),
-)
+const result = yield * checkPackage(pkg, {
+  includeEntrypoints: ['./utils'],
+  excludeEntrypoints: [/^.\/internal\//],
+  entrypoints: ['.', './cli'], // exhaustive override
+})
 ```
 
 Prefer the CLI for one-off checks. Add it to the project so your lockfile pins it, then run it through your package manager:

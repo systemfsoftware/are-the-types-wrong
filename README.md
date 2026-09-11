@@ -46,7 +46,7 @@ Problems replace the `✔` with `✘` and are named above the table, so the exit
 
 ## Using the Engine
 
-The engine is a library whose `checkPackage` returns a lazy Effect:
+`checkPackage` returns an Effect, so compose it into your own program and let your edge interpret it once:
 
 ```bash
 pnpm add @systemfsoftware/arethetypeswrong
@@ -58,12 +58,17 @@ import { createPackageFromTarballData } from '@systemfsoftware/npm-package'
 import { Effect } from 'effect'
 import { readFile } from 'node:fs/promises'
 
-const tarball = await readFile('./my-package-1.0.0.tgz')
-const analysis = await Effect.runPromise(checkPackage(createPackageFromTarballData(tarball)))
+const check = Effect.gen(function*() {
+  const tarball = yield* Effect.promise(() => readFile('./my-package-1.0.0.tgz'))
+  const analysis = yield* checkPackage(createPackageFromTarballData(tarball))
 
-// analysis.entrypoints — a resolution record per subpath
-// analysis.problems    — what failed, with the position of the offending syntax
+  // analysis.entrypoints — a resolution record per subpath
+  // analysis.problems    — what failed, with the position of the offending syntax
+  return analysis
+})
 ```
+
+Interpret it once, at the edge of your program: `yield*` it into a larger Effect, or run that Effect with `NodeRuntime.runMain` if it is a script that terminates. Keep one edge — `runMain` sets the exit code and installs the interrupt handlers, and wrapping it in a second runtime leaves the outer edge with no reach over the fibers doing the work.
 
 ## What it Checks
 
