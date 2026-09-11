@@ -19,6 +19,6 @@ pnpm change --bump <none|patch|minor|major> --summary "<changelog entry>" [<pkg>
   parses as `"<pkg>": <none|patch|minor|major>`.
 
 Publishing uses npm OIDC trusted publishing from `.github/workflows/release.yml`.
-Register `@TODO/starter` (TODO: your package name) as a trusted publisher on npmjs.com
+Register `@systemfsoftware/arethetypeswrong-cli` and `@systemfsoftware/arethetypeswrong` as trusted publishers on npmjs.com
 pointing at this repository and that workflow filename before the first new
 version can ship. OIDC cannot debut a package npm has never seen.

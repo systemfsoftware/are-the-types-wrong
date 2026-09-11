@@ -3,8 +3,16 @@ name: Force Release
 on:
   workflow_dispatch:
     inputs:
+      package:
+        description: "Package to force release for"
+        required: true
+        default: "@systemfsoftware/arethetypeswrong-cli"
+        type: choice
+        options:
+          - "@systemfsoftware/arethetypeswrong-cli"
+          - "@systemfsoftware/arethetypeswrong"
       bump:
-        description: "Release bump for @TODO/starter (TODO: your package name)"
+        description: "Release bump (patch, minor, major)"
         required: true
         default: patch
         type: choice
@@ -31,7 +39,7 @@ jobs:
         run: |
           cat > ".changeset/force-${{ github.run_id }}-${{ inputs.bump }}.md" <<EOF
           ---
-          "@TODO/starter": ${{ inputs.bump }}
+          "${{ inputs.package }}": ${{ inputs.bump }}
           ---
 
           chore(release): force ${{ inputs.bump }} release via workflow dispatch
