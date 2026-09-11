@@ -53,20 +53,31 @@ after:  writeVersion(manifest.version)            // inlined by the bundler at b
 
 ## Verification and Prevention
 
-The e2e lane carries the assertion, because that lane already runs the published binary. `manifestVersion(url)` decodes the manifest rather than casting it, so a manifest without a string version throws instead of making both comparison sides `undefined`:
+The e2e lane carries the assertion, because that lane already runs the published binary. It decodes the manifest rather than casting it — a manifest without a string version throws instead of making both comparison sides `undefined` — and derives both halves of the expected line, so the printed name is pinned to the published `bin` entry rather than repeated as a literal:
 
 ```ts
-const decode = (raw: string): string => {
-  const manifest: unknown = JSON.parse(raw)
+const cliManifest = async (url: URL): Promise<{ command: string; version: string }> => {
+  const manifest: unknown = JSON.parse(await readFile(url, 'utf8'))
   if (
-    typeof manifest !== 'object' || manifest === null || !('version' in manifest) ||
-    typeof manifest.version !== 'string'
-  ) throw new Error('no string version')
-  return manifest.version
+    typeof manifest !== 'object' || manifest === null ||
+    !('version' in manifest) || typeof manifest.version !== 'string' ||
+    !('bin' in manifest) || typeof manifest.bin !== 'object' || manifest.bin === null
+  ) {
+    throw new Error(`${url.pathname} declares no string version and bin entry`)
+  }
+  const commands = Object.keys(manifest.bin)
+  const [command] = commands
+  if (command === undefined || commands.length !== 1) {
+    throw new Error(`${url.pathname} declares ${commands.length} bin entries; the printed name needs exactly one`)
+  }
+  return { command, version: manifest.version }
 }
 
-expect(result.stdout.trim()).toBe(`attw v${manifestVersion}`)
+const { command, version } = await cliManifest(url)
+expect(stripAnsi(result.stdout).trim()).toBe(`${command} v${version}`)
 ```
+
+Decode the CLI's own JSON output the same way. Its payload has two shapes: a package that ships no types reports `{ analysis: { packageName, packageVersion, types: false } }` with neither `entrypoints` nor top-level `problems`, while a typed package adds both. A decoder that requires them throws on the untyped shape — validate against real output from both before shipping it.
 
 Checks that held for this fix: `pnpm check:ci` exits 0; the tsdown bundle and the nix artifact both print `attw v4.1.0` (`.#attw`), where the pre-fix bundle printed `attw v1.1.1` for the same manifest.
 
