@@ -22,7 +22,6 @@
   },
   "scripts": {
     "build": "tsdown",
-    "prepare": "tsdown",
     "clean": "rimraf dist",
     "typecheck": "tsc --noEmit --incremental",
     "attw": "node ./dist/main.mjs --pack .",
