@@ -1,22 +1,17 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: [
-    'src/main.ts',
-    'src/AttwHandler.ts',
-  ],
+  entry: ['src/main.ts'],
   format: 'esm',
   clean: true,
-  dts: true,
-  outExtensions: () => ({ js: '.mjs', dts: '.d.ts' }),
+  platform: 'node',
+  shims: true,
+  dts: false,
+  outExtensions: () => ({ js: '.mjs' }),
   tsconfig: './tsconfig.build.json',
   deps: {
-    neverBundle: [
-      '@systemfsoftware/arethetypeswrong',
-      '@systemfsoftware/npm-package',
-      'effect',
-      '@effect/cli',
-      '@effect/printer',
-    ],
+    alwaysBundle: [/./],
+    onlyImport: [/^node:/],
+    onlyBundle: false,
   },
 })

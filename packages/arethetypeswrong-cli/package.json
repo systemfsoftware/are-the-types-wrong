@@ -22,7 +22,6 @@
   },
   "scripts": {
     "build": "tsdown",
-    "prepare": "tsdown",
     "clean": "rimraf dist",
     "typecheck": "tsc --noEmit --incremental",
     "attw": "node ./dist/main.mjs --pack .",
@@ -32,24 +31,22 @@
     "prepack": "pnpm build"
   },
   "type": "module",
-  "dependencies": {
+  "devDependencies": {
     "@effect/platform-node": "catalog:",
     "@effect/platform-node-shared": "catalog:",
-    "@systemfsoftware/arethetypeswrong": "workspace:*",
-    "@systemfsoftware/npm-package": "catalog:",
-    "effect": "catalog:"
-  },
-  "devDependencies": {
     "@effect/vitest": "catalog:",
     "@systemfsoftware/all": "catalog:",
+    "@systemfsoftware/arethetypeswrong": "workspace:*",
     "@systemfsoftware/arethetypeswrong-recipes": "workspace:*",
     "@systemfsoftware/effect-gherkin-spec": "catalog:",
     "@systemfsoftware/effect-schema-law": "catalog:",
     "@systemfsoftware/effect-schema-vite": "catalog:",
+    "@systemfsoftware/npm-package": "catalog:",
     "@systemfsoftware/oxlint-plugin-effect-dmmf": "catalog:",
     "@systemfsoftware/tsconfig": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "effect": "catalog:",
     "fast-check": "catalog:",
     "oxlint": "catalog:",
     "rimraf": "catalog:",

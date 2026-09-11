@@ -243,29 +243,22 @@ importers:
         version: 4.1.11(@types/node@24.13.3)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@24.13.3)(jiti@2.6.1)(yaml@2.9.0))
 
   packages/arethetypeswrong-cli:
-    dependencies:
+    devDependencies:
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1)
       '@effect/platform-node-shared':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)
-      '@systemfsoftware/arethetypeswrong':
-        specifier: workspace:*
-        version: link:../arethetypeswrong
-      '@systemfsoftware/npm-package':
-        specifier: 'catalog:'
-        version: 0.2.2(effect@4.0.0-rc.112)
-      effect:
-        specifier: 'catalog:'
-        version: 4.0.0-rc.112
-    devDependencies:
       '@effect/vitest':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(vitest@4.1.11)
       '@systemfsoftware/all':
         specifier: 'catalog:'
         version: 1.1.3(effect@4.0.0-rc.112)(oxlint-tsgolint@7.0.2001)(oxlint@1.82.0(oxlint-tsgolint@7.0.2001))(typescript@7.0.2)
+      '@systemfsoftware/arethetypeswrong':
+        specifier: workspace:*
+        version: link:../arethetypeswrong
       '@systemfsoftware/arethetypeswrong-recipes':
         specifier: workspace:*
         version: link:../arethetypeswrong-recipes
@@ -278,6 +271,9 @@ importers:
       '@systemfsoftware/effect-schema-vite':
         specifier: 'catalog:'
         version: 2.0.3(@systemfsoftware/effect-schema-law@2.0.2(@effect/vitest@4.0.0-rc.112(effect@4.0.0-rc.112)(vitest@4.1.11))(effect@4.0.0-rc.112)(vitest@4.1.11))(effect@4.0.0-rc.112)(vite@8.2.2(@types/node@24.13.3)(jiti@2.6.1)(yaml@2.9.0))(vitest@4.1.11)
+      '@systemfsoftware/npm-package':
+        specifier: 'catalog:'
+        version: 0.2.2(effect@4.0.0-rc.112)
       '@systemfsoftware/oxlint-plugin-effect-dmmf':
         specifier: 'catalog:'
         version: 5.3.0(effect@4.0.0-rc.112)(oxlint@1.82.0(oxlint-tsgolint@7.0.2001))(typescript@7.0.2)
@@ -290,6 +286,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.11(vitest@4.1.11)
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-rc.112
       fast-check:
         specifier: 'catalog:'
         version: 4.9.0
