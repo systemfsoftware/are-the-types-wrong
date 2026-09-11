@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Skip during a merge: the staged set is the merge result, not authored work,
+# and lint-staged's stash/restore corrupts in-progress merge state.
+if [ -e "$(git rev-parse --git-path MERGE_HEAD)" ]; then
+  exit 0
+fi
+
+pnpm precommit

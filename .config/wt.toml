@@ -1,0 +1,18 @@
+[[pre-start]]
+setup = "deno run --import-map={{ worktree_path }}/repos/worktrunk-scripts/deno.json --allow-read --allow-write --allow-run=git {{ worktree_path }}/repos/worktrunk-scripts/scripts/pre-start.ts '{{ worktree_path }}' '{{ primary_worktree_path }}'"
+
+[[post-start]]
+copy = "wt step copy-ignored"
+codegraph = "deno run --import-map={{ worktree_path }}/repos/worktrunk-scripts/deno.json --allow-read --allow-write --allow-run --allow-env=HOME {{ worktree_path }}/repos/worktrunk-scripts/scripts/copy-codegraph.ts '{{ worktree_path }}' '{{ primary_worktree_path }}'"
+
+[[post-start]]
+deps = "deno run --import-map={{ worktree_path }}/repos/worktrunk-scripts/deno.json --allow-read --allow-run {{ worktree_path }}/repos/worktrunk-scripts/scripts/install-deps.ts '{{ worktree_path }}'"
+
+[[post-start]]
+generate = "deno run --import-map={{ worktree_path }}/repos/worktrunk-scripts/deno.json --allow-read --allow-run {{ worktree_path }}/repos/worktrunk-scripts/scripts/generate-artifacts.ts '{{ worktree_path }}'"
+
+[post-switch]
+gitkraken-compat = "deno run --allow-run=git {{ worktree_path }}/repos/worktrunk-scripts/scripts/post-switch.ts '{{ worktree_path }}'"
+
+[pre-merge]
+cleanup = "deno run --import-map={{ worktree_path }}/repos/worktrunk-scripts/deno.json --allow-read --allow-write --allow-run=git {{ worktree_path }}/repos/worktrunk-scripts/scripts/pre-merge.ts '{{ worktree_path }}'"

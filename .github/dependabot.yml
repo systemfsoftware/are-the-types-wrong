@@ -1,0 +1,93 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directories:
+      - "/"
+    labels:
+      - "automerge"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    versioning-strategy: "increase"
+    open-pull-requests-limit: 20
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+    groups:
+      oxlint-minor-patch:
+        patterns:
+          - "oxlint"
+          - "@oxlint/*"
+        update-types: ["minor", "patch"]
+      oxlint-major:
+        patterns:
+          - "oxlint"
+          - "@oxlint/*"
+        update-types: ["major"]
+      effect-minor-patch:
+        patterns:
+          - "@effect/*"
+          - "effect"
+        update-types: ["minor", "patch"]
+      effect-major:
+        patterns:
+          - "@effect/*"
+          - "effect"
+        update-types: ["major"]
+      turborepo-minor-patch:
+        patterns:
+          - "turbo"
+        update-types: ["minor", "patch"]
+      testing-minor-patch:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+        update-types: ["minor", "patch"]
+      testing-major:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+        update-types: ["major"]
+      commitlint-minor-patch:
+        patterns:
+          - "@commitlint/*"
+        update-types: ["minor", "patch"]
+      typescript-minor-patch:
+        patterns:
+          - "typescript"
+        update-types: ["minor", "patch"]
+      other-minor-patch:
+        patterns: ["*"]
+        exclude-patterns:
+          - "oxlint"
+          - "@oxlint/*"
+          - "@effect/*"
+          - "@commitlint/*"
+          - "typescript"
+        update-types: ["minor", "patch"]
+      major-updates:
+        patterns: ["*"]
+        exclude-patterns:
+          - "oxlint"
+          - "@oxlint/*"
+          - "@commitlint/*"
+          - "typescript"
+        update-types: ["major"]
+
+  - package-ecosystem: "nix"
+    directories:
+      - "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"

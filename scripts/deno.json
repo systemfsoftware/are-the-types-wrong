@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitOverride": true
+  },
+  "imports": {
+    "@std/cli/parse-args": "jsr:@std/cli@1/parse-args",
+    "@std/collections/without-all": "jsr:@std/collections@1/without-all",
+    "@std/front-matter": "jsr:@std/front-matter@1",
+    "@std/fs/expand-glob": "jsr:@std/fs@1/expand-glob",
+    "@std/path": "jsr:@std/path@1",
+    "octokit": "npm:octokit@^4"
+  }
+}
