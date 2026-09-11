@@ -31,11 +31,6 @@ export default defineConfig({
   entry: ['src/index.ts'],
   format: 'esm',
   clean: true,
-  // No `devExports` source condition here, unlike its siblings: this package's source
-  // reaches TypeScript's internal API, which only its own `tsconfig.build.json` models.
-  // Publishing a source condition makes every consumer compile these files and inherit
-  // 122 errors about members that are absent from the public `typeof ts`. Consumers get
-  // the emitted declarations, which is what they install.
   exports: { customExports: injectTypes },
   outExtensions: () => ({ js: '.mjs', dts: '.d.ts' }),
   tsconfig: './tsconfig.build.json',
