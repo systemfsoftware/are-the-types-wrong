@@ -27,7 +27,6 @@
     "attw": "node ./dist/main.mjs --pack .",
     "lint": "f=${OXLINT_FORMAT:-${AGENT:+agent}}; oxlint . --format=${f:-default}",
     "test": "vitest run",
-    "test:contract": "vitest run --config vitest.contract.config.ts",
     "prepack": "pnpm build"
   },
   "type": "module",
@@ -37,11 +36,8 @@
     "@effect/vitest": "catalog:",
     "@systemfsoftware/all": "catalog:",
     "@systemfsoftware/arethetypeswrong": "workspace:*",
-    "@systemfsoftware/arethetypeswrong-recipes": "workspace:*",
-    "@systemfsoftware/effect-gherkin-spec": "catalog:",
     "@systemfsoftware/effect-schema-law": "catalog:",
     "@systemfsoftware/effect-schema-vite": "catalog:",
-    "@systemfsoftware/npm-package": "catalog:",
     "@systemfsoftware/oxlint-plugin-effect-dmmf": "catalog:",
     "@systemfsoftware/tsconfig": "catalog:",
     "@types/node": "catalog:",
@@ -50,7 +46,6 @@
     "fast-check": "catalog:",
     "oxlint": "catalog:",
     "rimraf": "catalog:",
-    "testcontainers": "catalog:",
     "tsdown": "catalog:",
     "vite-tsconfig-paths": "catalog:",
     "vitest": "catalog:"

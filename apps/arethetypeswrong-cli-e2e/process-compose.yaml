@@ -1,0 +1,14 @@
+version: "0.5"
+
+processes:
+  verdaccio:
+    command: "verdaccio --config /work/verdaccio.yaml --listen 0.0.0.0:4873"
+    readiness_probe:
+      http_get:
+        host: 127.0.0.1
+        port: 4873
+        path: "/-/ping"
+      initial_delay_seconds: 0
+      period_seconds: 1
+      timeout_seconds: 1
+      failure_threshold: 10
