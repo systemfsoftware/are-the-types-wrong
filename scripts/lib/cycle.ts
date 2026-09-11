@@ -14,27 +14,36 @@ type Pkg = {
   private?: boolean
 }
 
-export const loadWorkspaceCycle = async (): Promise<CycleEntry[]> => {
+type Released = { name: string; version: string }
+
+export const publicPackages = async (): Promise<Released[]> => {
   const pkgs = JSON.parse(await run('pnpm', ['ls', '-r', '--json', '--depth=-1'])) as Pkg[]
-  const remote = new Set(
-    (await run('git', ['ls-remote', '--tags', 'origin']))
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => line.replace(/.*refs\/tags\//, '').replace(/\^\{\}$/, '')),
-  )
-  const cycle: CycleEntry[] = []
-  for (const pkg of pkgs) {
-    if (!pkg.name || !pkg.version || pkg.private) continue
-    const tag = `${pkg.name}@v${pkg.version}`
-    if (remote.has(tag)) continue
-    cycle.push({
-      name: pkg.name,
-      version: pkg.version,
-      tag,
-      changelog: join('.changeset', 'changelogs', `${pkg.name.replace('/', '!')}@${pkg.version}.md`),
-    })
-  }
-  return cycle
+  return pkgs
+    .filter((pkg) => pkg.name && pkg.version && !pkg.private)
+    .map((pkg) => ({ name: pkg.name as string, version: pkg.version as string }))
+}
+
+export const unpublishedWorkspace = async (): Promise<Released[]> => {
+  const pkgs = await publicPackages()
+  const published = await Promise.all(pkgs.map((pkg) => isPublished(pkg.name, pkg.version)))
+  return pkgs.filter((_, i) => !published[i])
+}
+
+const isPublished = async (name: string, version: string): Promise<boolean> => {
+  const res = await fetch(`https://registry.npmjs.org/${name.replace('/', '%2F')}`)
+  if (!res.ok) return false
+  const body = await res.json() as { versions?: Record<string, unknown> }
+  return typeof body.versions?.[version] !== 'undefined'
+}
+
+export const loadWorkspaceCycle = async (): Promise<CycleEntry[]> => {
+  const pkgs = await unpublishedWorkspace()
+  return pkgs.map(({ name, version }) => ({
+    name,
+    version,
+    tag: `${name}@v${version}`,
+    changelog: join('.changeset', 'changelogs', `${name.replace('/', '!')}@${version}.md`),
+  }))
 }
 
 export const loadCaptured = async (path: string): Promise<CycleEntry[]> => {
