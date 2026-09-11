@@ -17,7 +17,7 @@ const intentPackages = (markdown: string) => {
 
 const publicPackages = async () => {
   const names: string[] = []
-  for await (const file of expandGlob('packages/*/package.json')) {
+  for await (const file of expandGlob('{apps,packages}/*/package.json')) {
     const pkg = JSON.parse(await Deno.readTextFile(file.path)) as {
       name?: string
       version?: string
@@ -44,7 +44,8 @@ if (!baseSha) {
 }
 
 const changed = (await run('git', ['diff', '--name-only', `${baseSha}...HEAD`])).split('\n').filter(Boolean)
-const touched = changed.some((file) => file === 'packages' || file.startsWith('packages/'))
+const WORKSPACE_ROOTS = ['apps', 'packages'] as const
+const touched = changed.some((file) => WORKSPACE_ROOTS.some((root) => file === root || file.startsWith(`${root}/`)))
   ? await publicPackages()
   : []
 const missing = withoutAll(touched, await namedIntents())

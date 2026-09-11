@@ -4,11 +4,11 @@
     "//"
   ],
   "tasks": {
-    "test": {
-      "dependsOn": [
-        "^build",
-        "build"
-      ]
+    "build": {
+      "dependsOn": []
+    },
+    "typecheck": {
+      "dependsOn": []
     }
   }
 }

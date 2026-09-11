@@ -8,7 +8,7 @@ A workspace housing the analysis engine and the `attw` CLI behind [arethetypeswr
 
 | Package                                                                          | What it is                                                                     |
 | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| [`@systemfsoftware/arethetypeswrong-cli`](packages/arethetypeswrong-cli)         | The `attw` command — checks a tarball, a directory, or a published package     |
+| [`@systemfsoftware/arethetypeswrong-cli`](apps/arethetypeswrong-cli)             | The `attw` command — checks a tarball, a directory, or a published package     |
 | [`@systemfsoftware/arethetypeswrong`](packages/arethetypeswrong)                 | The analysis engine, as a library for your own tooling                         |
 | [`@systemfsoftware/arethetypeswrong-recipes`](packages/arethetypeswrong-recipes) | Synthetic packages, one per problem kind, that test the engine (not published) |
 
@@ -42,7 +42,7 @@ node16-esm  ✔  ✔
 bundler     ✔  ✔
 ```
 
-Problems replace the `✔` with `✘` and are named above the table, so the exit code can gate CI. Use a [profile](packages/arethetypeswrong-cli/README.md#profiles) when your package deliberately supports only some resolution modes.
+Problems replace the `✔` with `✘` and are named above the table, so the exit code can gate CI. Use a [profile](apps/arethetypeswrong-cli/README.md#profiles) when your package deliberately supports only some resolution modes.
 
 ## Using the Engine
 
@@ -83,7 +83,7 @@ The engine simulates how Node and TypeScript resolve each entry point under the 
 
 ## Documentation
 
-- [CLI options, config file, and profiles](packages/arethetypeswrong-cli/README.md)
+- [CLI options, config file, and profiles](apps/arethetypeswrong-cli/README.md)
 - [Engine API reference](packages/arethetypeswrong/README.md)
 - [What each problem kind means](https://github.com/arethetypeswrong/arethetypeswrong.github.io/tree/main/docs/problems)
 
