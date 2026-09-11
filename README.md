@@ -2,7 +2,7 @@
 
 > Predictable TypeScript types for npm packages: check entry points, module kinds, and export bindings under every resolution mode Node and bundlers use, before you publish.
 
-A workspace housing the analysis engine and the `attw` CLI behind [arethetypeswrong.github.io](https://arethetypeswrong.github.io).
+TypeScript package type-checking engine and CLI for auditing npm package entry points, module kinds, and export bindings across Node and bundler resolution modes.
 
 ## Packages
 
@@ -58,21 +58,20 @@ Problems replace the `✔` with `✘` and are named above the table, so the exit
 pnpm add @systemfsoftware/arethetypeswrong
 ```
 
-```ts
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
 import { createPackageFromTarballData } from '@systemfsoftware/npm-package'
 import { Effect } from 'effect'
-import { readFile } from 'node:fs/promises'
+import * as FileSystem from 'effect/FileSystem'
 
 const check = Effect.gen(function*() {
-  const tarball = yield* Effect.promise(() => readFile('./my-package-1.0.0.tgz'))
-  const analysis = yield* checkPackage(createPackageFromTarballData(tarball))
+const fs = yield* FileSystem.FileSystem
+const tarball = yield* fs.readFile('./my-package-1.0.0.tgz')
+const analysis = yield* checkPackage(createPackageFromTarballData(tarball))
 
-  // analysis.entrypoints — a resolution record per subpath
-  // analysis.problems    — what failed, with the position of the offending syntax
-  return analysis
+// analysis.entrypoints — a resolution record per subpath
+// analysis.problems — what failed, with the position of the offending syntax
+return analysis
 })
-```
 
 Interpret it once, at the edge of your program: `yield*` it into a larger Effect, or run that Effect with `NodeRuntime.runMain` if it is a script that terminates. Keep one edge — `runMain` sets the exit code and installs the interrupt handlers, and wrapping it in a second runtime leaves the outer edge with no reach over the fibers doing the work.
 

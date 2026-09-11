@@ -1,6 +1,6 @@
 # @systemfsoftware/arethetypeswrong-cli
 
-A CLI for [arethetypeswrong.github.io](https://arethetypeswrong.github.io/).
+A CLI tool to check npm package entry points, module kinds, and export bindings across Node and bundler resolution modes.
 
 This project attempts to analyze npm package contents for issues with their TypeScript types, particularly ESM-related module resolution issues. The following kinds of problems can be detected in the `node10`, `node16`, and `bundler` module resolution modes:
 
@@ -55,7 +55,7 @@ that runs it — no `node_modules`, and nothing is fetched at run time.
 
 ## Usage
 
-The `attw` command acts very similarly to [arethetypeswrong.github.io](https://arethetypeswrong.github.io/), with some additional features that are useful for command line usage.
+The `attw` command provides command-line analysis of package resolutions, with support for local directories, packed tarballs, and registry packages.
 
 The CLI can check an `npm pack`ed tarball:
 

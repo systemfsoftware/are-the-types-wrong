@@ -1,6 +1,6 @@
 # @systemfsoftware/arethetypeswrong
 
-> The analysis engine behind [arethetypeswrong.github.io](https://arethetypeswrong.github.io) — check an npm tarball's entry points, module kinds, and export bindings before you publish.
+> TypeScript package type-checking engine for auditing npm package entry points, module kinds, and export bindings across Node and bundler resolution modes.
 
 Analyzes a package tarball the way Node and TypeScript will actually resolve it: entry-point discovery from `package.json` (`main`, `exports`, `bin`), per-entry `commonjs` / `ESM` resolution, and export-shape checks. Use it to catch publish-time mistakes locally instead of after `npm publish`.
 
@@ -89,10 +89,11 @@ Check a real tarball on disk:
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
 import { createPackageFromTarballData } from '@systemfsoftware/npm-package'
 import { Effect } from 'effect'
-import { readFile } from 'node:fs/promises'
+import * as FileSystem from 'effect/FileSystem'
 
 const checkTarball = Effect.gen(function*() {
-  const data = yield* Effect.promise(() => readFile('./my-package-1.2.3.tgz'))
+  const fs = yield* FileSystem.FileSystem
+  const data = yield* fs.readFile('./my-package-1.2.3.tgz')
   return yield* checkPackage(createPackageFromTarballData(data))
 })
 // `checkTarball` yields an `Analysis` (entrypoints + problems) or an `UntypedResult`

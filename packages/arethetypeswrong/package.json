@@ -1,7 +1,7 @@
 {
   "name": "@systemfsoftware/arethetypeswrong",
   "version": "7.0.0",
-  "description": "The API behind arethetypeswrong.github.io — owned and maintained by systemfsoftware",
+  "description": "TypeScript package type-checking engine for auditing npm package entry points, module kinds, and export bindings",
   "author": "Ryan Lee <drdgvhbh@gmail.com>",
   "license": "Apache-2.0",
   "repository": {
