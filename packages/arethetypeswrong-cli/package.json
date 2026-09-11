@@ -1,0 +1,62 @@
+{
+  "name": "@systemfsoftware/arethetypeswrong-cli",
+  "version": "4.0.0",
+  "description": "A CLI tool for arethetypeswrong.github.io — owned and maintained by systemfsoftware",
+  "author": "Ryan Lee <drdgvhbh@gmail.com>",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/systemfsoftware/are-the-types-wrong.git",
+    "directory": "packages/arethetypeswrong-cli"
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "bin": {
+    "attw": "./dist/main.mjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prepare": "tsdown",
+    "clean": "rimraf dist",
+    "typecheck": "tsc --noEmit --incremental",
+    "attw": "node ./dist/main.mjs --pack .",
+    "lint": "f=${OXLINT_FORMAT:-${AGENT:+agent}}; oxlint . --format=${f:-default}",
+    "test": "vitest run",
+    "test:contract": "vitest run --config vitest.contract.config.ts",
+    "prepack": "pnpm build"
+  },
+  "type": "module",
+  "dependencies": {
+    "@effect/platform-node": "^4.0.0-rc.112",
+    "@effect/platform-node-shared": "^4.0.0-rc.112",
+    "@systemfsoftware/arethetypeswrong": "workspace:*",
+    "@systemfsoftware/npm-package": "^0.2.2",
+    "effect": "^4.0.0-rc.112"
+  },
+  "devDependencies": {
+    "@effect/vitest": "^4.0.0-rc.112",
+    "@systemfsoftware/arethetypeswrong-recipes": "workspace:*",
+    "@systemfsoftware/effect-gherkin-spec": "^4.0.1",
+    "@systemfsoftware/effect-schema-law": "^2.0.2",
+    "@systemfsoftware/effect-schema-vite": "^2.0.3",
+    "@systemfsoftware/oxlint-plugin-effect-dmmf": "^5.3.0",
+    "@systemfsoftware/tsconfig": "^1.3.3",
+    "@types/node": "^24",
+    "fast-check": "^4",
+    "oxlint": "^1.77.0",
+    "rimraf": "^6.1.3",
+    "testcontainers": "^12.1.0",
+    "tsdown": "^0.23.0",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

@@ -1,7 +1,10 @@
 allowBuilds:
+  cpu-features: false
   msgpackr-extract: false
   onnxruntime-node: false
   protobufjs: false
   sharp: false
+  ssh2: false
 packages:
   - packages/*
+  - packages/arethetypeswrong/*
