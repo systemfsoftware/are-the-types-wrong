@@ -23,6 +23,12 @@ pnpm add -D @systemfsoftware/arethetypeswrong-cli
 > [!NOTE]
 > Prefer a lockfile-pinned install over `npx`. A tool whose job is auditing what your package resolves should not itself be resolved fresh from the registry on every run.
 
+The CLI is also a flake output, built from this repository with the Node that runs it pinned:
+
+```bash
+nix run github:systemfsoftware/are-the-types-wrong#attw -- --pack .
+```
+
 ## Quick Start
 
 Run the check from the package you want to audit. `--pack` runs `npm pack`, analyzes the resulting tarball, and deletes it:

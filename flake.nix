@@ -20,7 +20,8 @@
           dprint = pkgs.callPackage ./nix/dprint.nix { };
           cc = comment-checker.packages.${pkgs.system}.comment-checker;
           comment-checker-bwrap = pkgs.callPackage ./nix/comment-checker-bwrap.nix { comment-checker = cc; };
-        in { inherit dprint comment-checker-bwrap; comment-checker = cc; default = dprint; });
+          attw = pkgs.callPackage ./nix/attw.nix { };
+        in { inherit dprint attw comment-checker-bwrap; comment-checker = cc; default = dprint; });
 
       # pnpm is deliberately absent: `packageManager` pins pnpm@11.21.0 and
       # corepack is the one thing allowed to resolve it. A second pnpm on PATH
