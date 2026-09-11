@@ -3,15 +3,16 @@
 # The CLI is a self-contained program: tsdown inlines every runtime dependency
 # (effect, @effect/platform-node, the engine, typescript) into one ESM file, so
 # the result is Node plus a single .mjs and nothing else. pnpm exists only to
-# put the build toolchain in place — the pnpm store is a fixed-output fetch of
-# the workspace lockfile, so building needs no network.
+# put the build toolchain in place. Each lockfile package is fetched by its own
+# integrity field, so the lockfile is the only pin — a lockfile bump does not
+# need a second store-wide hash.
 {
   lib,
   stdenvNoCC,
   nodejs_24,
   pnpm_11,
-  fetchPnpmDeps,
-  pnpmConfigHook,
+  importPnpmLock,
+  iplConfigHook,
   makeWrapper,
 }:
 
@@ -47,17 +48,15 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
   src = source;
 
-  pnpmDeps = fetchPnpmDeps {
-    inherit (finalAttrs) pname version src;
-    pnpm = pnpm_11;
-    fetcherVersion = 4;
-    hash = "sha256-7SPJElqCcekima75fJ7jhrtwNB3uFg0R5KitNFyLqt0=";
+  mitmCache = importPnpmLock {
+    inherit (finalAttrs) pname version;
+    lockFile = ../pnpm-lock.yaml;
   };
 
   nativeBuildInputs = [
     nodejs_24
     pnpm_11
-    pnpmConfigHook
+    iplConfigHook
     makeWrapper
   ];
 
