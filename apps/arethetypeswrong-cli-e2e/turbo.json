@@ -14,12 +14,16 @@
       "dependsOn": []
     },
     "typecheck": {
-      "dependsOn": []
+      "dependsOn": [
+        "@systemfsoftware/arethetypeswrong-recipes#build"
+      ]
     },
     "test:e2e": {
       "cache": false,
       "outputLogs": "new-only",
-      "dependsOn": []
+      "dependsOn": [
+        "@systemfsoftware/arethetypeswrong-recipes#build"
+      ]
     }
   }
 }
