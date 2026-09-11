@@ -61,16 +61,10 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     makeWrapper
   ];
 
-  # The CLI's bundler resolves `@systemfsoftware/arethetypeswrong` through its
-  # published `exports` map, so the engine must be built before it. Turbo would
-  # order these too, but it is not installed here — the dependency is stated
-  # directly.
   buildPhase = ''
     runHook preBuild
-
     pnpm --filter @systemfsoftware/arethetypeswrong run build
     pnpm --filter @systemfsoftware/arethetypeswrong-cli run build
-
     runHook postBuild
   '';
 
