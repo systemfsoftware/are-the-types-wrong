@@ -1,14 +1,10 @@
 #!/usr/bin/env -S deno run --config=scripts/deno.json --allow-read --allow-write --allow-run=git,pnpm --allow-import --allow-net=jsr.io,registry.npmjs.org
 
 import { parseArgs } from '@std/cli/parse-args'
-import { expandGlob } from '@std/fs/expand-glob'
-import { basename } from '@std/path'
 import { loadWorkspaceCycle } from './lib/cycle.ts'
+import { countPendingIntents } from './lib/pending-intents.ts'
 
-let pending = 0
-for await (const entry of expandGlob('.changeset/*.md')) {
-  if (basename(entry.path) !== 'README.md') pending++
-}
+const pending = await countPendingIntents('.changeset')
 
 const owed = (await loadWorkspaceCycle()).length
 const phase = owed > 0 ? 'publish' : pending > 0 ? 'version' : 'none'

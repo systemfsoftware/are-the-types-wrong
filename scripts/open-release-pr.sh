@@ -7,11 +7,23 @@ set -euo pipefail
 
 existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
 
+git fetch --quiet origin "$BASE"
+
+close_if_open() {
+  if [ -n "$existing" ]; then
+    gh pr close "$existing" --delete-branch --comment "$1"
+  fi
+}
+
 if [ -z "$(git status --porcelain)" ]; then
   echo "no pending change intents — nothing to release"
-  if [ -n "$existing" ]; then
-    gh pr close "$existing" --delete-branch --comment "No pending change intents remain."
-  fi
+  close_if_open "No pending change intents remain."
+  exit 0
+fi
+
+if [ -z "$(git diff --name-only "origin/$BASE" -- 'apps/*/package.json' 'packages/*/package.json')" ]; then
+  echo "no package.json version bumps against origin/$BASE — not opening a release PR"
+  close_if_open "No package version bumps against $BASE."
   exit 0
 fi
 
