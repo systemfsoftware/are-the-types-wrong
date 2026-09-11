@@ -1,6 +1,6 @@
 {
   "name": "@systemfsoftware/arethetypeswrong-cli",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "CLI tool for checking npm package entry points, module kinds, and export bindings across resolution modes",
   "author": "Ryan Lee <drdgvhbh@gmail.com>",
   "license": "Apache-2.0",

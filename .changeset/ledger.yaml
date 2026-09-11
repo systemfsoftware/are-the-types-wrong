@@ -1,1 +1,9 @@
-{}
+"@systemfsoftware/arethetypeswrong-cli@4.1.0":
+  dir: apps/arethetypeswrong-cli
+  intents:
+    - force-34643654002-patch
+    - twenty-vans-prove
+"@systemfsoftware/arethetypeswrong@7.0.1":
+  dir: packages/arethetypeswrong
+  intents:
+    - force-34643682311-patch
