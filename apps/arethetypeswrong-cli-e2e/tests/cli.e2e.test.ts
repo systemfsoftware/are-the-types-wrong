@@ -26,10 +26,10 @@ const RECIPE_FIXTURES = [recipes.UntypedResolution, recipes.FalseCJS, recipes.Mu
 
 interface Analysis {
   readonly analysis: {
+    readonly entrypoints: object | undefined
     readonly packageName: string
-    readonly entrypoints: Record<string, unknown>
   }
-  readonly problems?: unknown
+  readonly problems: unknown
 }
 
 let container: StartedTestContainer
@@ -37,19 +37,52 @@ let scratch: string
 let cliBin: string
 let npmBin: string
 
-const analyzeJson = (stdout: string): Analysis => JSON.parse(stdout) as Analysis
-const entrypointsIn = (stdout: string): readonly string[] => Object.keys(analyzeJson(stdout).analysis.entrypoints)
+const analyzeJson = (stdout: string): Analysis => {
+  const parsed: unknown = JSON.parse(stdout)
+  if (typeof parsed !== 'object' || parsed === null || !('analysis' in parsed)) {
+    throw new Error(`attw printed no analysis object: ${stdout}`)
+  }
+  const { analysis } = parsed
+  if (
+    typeof analysis !== 'object' || analysis === null || !('packageName' in analysis) ||
+    typeof analysis.packageName !== 'string'
+  ) {
+    throw new Error(`attw printed an analysis without a package name: ${stdout}`)
+  }
+  const entrypoints = 'entrypoints' in analysis ? analysis.entrypoints : undefined
+  if (entrypoints !== undefined && (typeof entrypoints !== 'object' || entrypoints === null)) {
+    throw new Error(`attw printed entrypoints that are not an object: ${stdout}`)
+  }
+  return {
+    analysis: { entrypoints, packageName: analysis.packageName },
+    problems: 'problems' in parsed ? parsed.problems : undefined,
+  }
+}
+const entrypointsIn = (stdout: string): readonly string[] => {
+  const { entrypoints } = analyzeJson(stdout).analysis
+  if (entrypoints === undefined) throw new Error(`attw printed no entrypoints: ${stdout}`)
+  return Object.keys(entrypoints)
+}
 
-const manifestVersion = async (url: URL): Promise<string> => {
+const cliManifest = async (url: URL): Promise<{ readonly command: string; readonly version: string }> => {
   const manifest: unknown = JSON.parse(await readFile(url, 'utf8'))
   if (
-    typeof manifest !== 'object' || manifest === null || !('version' in manifest) ||
-    typeof manifest.version !== 'string'
+    typeof manifest !== 'object' || manifest === null ||
+    !('version' in manifest) || typeof manifest.version !== 'string' ||
+    !('bin' in manifest) || typeof manifest.bin !== 'object' || manifest.bin === null
   ) {
-    throw new Error(`${url.pathname} declares no string version`)
+    throw new Error(`${url.pathname} declares no string version and bin entry`)
   }
-  return manifest.version
+  const commands = Object.keys(manifest.bin)
+  const [command] = commands
+  if (command === undefined || commands.length !== 1) {
+    throw new Error(`${url.pathname} declares ${commands.length} bin entries; the printed name needs exactly one`)
+  }
+  return { command, version: manifest.version }
 }
+
+const ANSI_SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
+const stripAnsi = (text: string): string => text.replace(ANSI_SGR, '')
 
 const runCli = async (args: readonly string[], cwd = WORKDIR) => {
   const result = await container.exec([cliBin, ...args], { workingDir: cwd })
@@ -208,10 +241,10 @@ afterAll(async () => {
 describe('attw, built by nix, run in a container', () => {
   test('prints the version of the CLI package it was built from', async () => {
     const result = await runCli(['--version'])
-    const version = await manifestVersion(CLI_MANIFEST_URL)
+    const { command, version } = await cliManifest(CLI_MANIFEST_URL)
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout.trim()).toBe(`attw v${version}`)
+    expect(stripAnsi(result.stdout).trim()).toBe(`${command} v${version}`)
   })
 
   test('reports resolution problems for an untyped package', async () => {
