@@ -5,7 +5,6 @@
     "exactOptionalPropertyTypes": false,
     "noUncheckedIndexedAccess": false,
     "noImplicitReturns": false,
-    "customConditions": ["@systemfsoftware/source"],
     "types": [],
     "plugins": [{ "name": "@effect/language-service" }]
   },

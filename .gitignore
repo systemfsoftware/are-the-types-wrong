@@ -8,3 +8,5 @@ reports/
 .mcp.json
 .turbo/
 .direnv/
+result
+result-*

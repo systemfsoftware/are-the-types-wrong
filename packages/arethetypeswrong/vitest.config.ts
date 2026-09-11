@@ -40,14 +40,6 @@ const sharedConfig = {
 export default defineConfig({
   ...sharedConfig,
   plugins: [inlineSchemaTests()],
-  resolve: {
-    conditions: ['@systemfsoftware/source'],
-  },
-  ssr: {
-    resolve: {
-      conditions: ['@systemfsoftware/source'],
-    },
-  },
   test: {
     ...sharedConfig.test,
     include: ['tests/**/*.test.ts', 'src/schema-laws.test.ts'],

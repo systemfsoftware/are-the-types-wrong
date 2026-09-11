@@ -3,9 +3,6 @@
   "extends": "@systemfsoftware/tsconfig/tsc/dom/library-monorepo",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
-    "customConditions": [
-      "@systemfsoftware/source"
-    ],
     "types": [
       "node"
     ]

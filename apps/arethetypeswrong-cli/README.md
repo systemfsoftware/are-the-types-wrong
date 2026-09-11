@@ -40,6 +40,19 @@ To use `attw` outside any project, install it globally:
 npm i -g @systemfsoftware/arethetypeswrong-cli
 ```
 
+### Nix
+
+The CLI is a flake output, so it can be run or installed without npm:
+
+```shell
+nix run github:systemfsoftware/are-the-types-wrong#attw -- --pack .
+nix profile install github:systemfsoftware/are-the-types-wrong#attw
+```
+
+From a checkout, use `nix run .#attw -- --pack .`. The build inlines every
+dependency into a single script, so the derivation carries the CLI plus the Node
+that runs it — no `node_modules`, and nothing is fetched at run time.
+
 ## Usage
 
 The `attw` command acts very similarly to [arethetypeswrong.github.io](https://arethetypeswrong.github.io/), with some additional features that are useful for command line usage.
