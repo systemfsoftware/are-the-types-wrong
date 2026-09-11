@@ -41,3 +41,22 @@ jobs:
       # Root package.json `check:ci` is the one definition. Never re-enumerate its steps here.
       - name: Gate
         run: pnpm check:ci
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: attw CLI e2e
+        run: pnpm test:e2e
