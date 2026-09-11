@@ -1,4 +1,4 @@
-# arethetypeswrong/cli
+# @systemfsoftware/arethetypeswrong-cli
 
 A CLI for [arethetypeswrong.github.io](https://arethetypeswrong.github.io/).
 
@@ -19,15 +19,26 @@ This project attempts to analyze npm package contents for issues with their Type
 
 ## Installation
 
+Add it to the project you want to check, so your lockfile pins the version:
+
+```shell
+pnpm add -D @systemfsoftware/arethetypeswrong-cli
+```
+
+Then run it through your package manager:
+
+```shell
+pnpm exec attw --pack .
+```
+
+> [!NOTE]
+> Prefer a lockfile-pinned install over `npx`. A tool that audits what your package resolves should not itself be resolved fresh from the registry on each run.
+
+To use `attw` outside any project, install it globally:
+
 ```shell
 npm i -g @systemfsoftware/arethetypeswrong-cli
 ```
-
-<!-- Or, using `npx`: -->
-<!---->
-<!-- ```shell -->
-<!-- npx attw -->
-<!-- ``` -->
 
 ## Usage
 
@@ -54,16 +65,16 @@ or check a package from npm:
 attw --from-npm @systemfsoftware/arethetypeswrong-cli
 ```
 
-You can also use `attw` without installing globally by using `npx`. Pack one in-place by specifying `--pack` and a directory:
+Installed as a dev dependency (see [Installation](#installation)), invoke it through your package manager so the pinned version runs:
 
-```
-npx --yes @systemfsoftware/arethetypeswrong-cli --pack .
+```shell
+pnpm exec attw --pack .
 ```
 
 or check a package from npm:
 
-```
-npx --yes @systemfsoftware/arethetypeswrong-cli --from-npm @systemfsoftware/arethetypeswrong-cli
+```shell
+pnpm exec attw --from-npm @systemfsoftware/arethetypeswrong-cli
 ```
 
 ## Configuration

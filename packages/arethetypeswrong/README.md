@@ -4,9 +4,6 @@
 
 Analyzes a package tarball the way Node and TypeScript will actually resolve it: entry-point discovery from `package.json` (`main`, `exports`, `bin`), per-entry `commonjs` / `ESM` resolution, and export-shape checks. Use it to catch publish-time mistakes locally instead of after `npm publish`.
 
-> [!WARNING]
-> This package is pre-1.0 (`4.0.0` under `v0` semver). Patch and minor releases may change the public API. Pin the version in production.
-
 ## What it does
 
 A single `checkPackage` call returns a structured analysis or a set of diagnostics. Each entry point is checked under every relevant resolution kind:
@@ -34,11 +31,12 @@ Requires Node `>=24` and `typescript@^6.0.3` (the 6.x JS bridge — see [TypeScr
 
 ## Quick start
 
-Check an in-memory package:
+Check an in-memory package. `checkPackage` returns an Effect, so yield it into your own program:
 
 ```ts
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
 import { createPackage } from '@systemfsoftware/npm-package'
+import { Effect } from 'effect'
 
 const pkg = createPackage(
   {
@@ -50,17 +48,18 @@ const pkg = createPackage(
   '1.0.0',
 )
 
-const result = await checkPackage(pkg)
+const check = Effect.gen(function*() {
+  const result = yield* checkPackage(pkg)
 
-if ('entrypoints' in result) {
-  console.log(Object.keys(result.entrypoints))
-  // e.g. [ ".", "./utils", "./features/*.js" ]
-} else {
-  for (const problem of result.problems) {
-    console.error(problem.kind, problem.entrypoint, problem.pos)
+  if ('entrypoints' in result) {
+    return Object.keys(result.entrypoints) // [ "." ]
   }
-}
+  // result.types === false — the package ships no type declarations
+  return []
+})
 ```
+
+Interpret that Effect once, at your program's edge: `yield*` it into a larger Effect, or run it with `runMain` (from `@effect/platform-node` / `@effect/platform-bun`) when the program terminates on its own.
 
 Mount the same tree on an in-memory filesystem (keys stay `/node_modules/<name>/…`):
 
@@ -74,10 +73,14 @@ const tree = {
   'index.js': 'export const x = 1',
 }
 const contents = toDirectoryJSON(tree, 'demo')
-// `contents` is a plain `Record<string, string>` like `{ '/node_modules/demo/package.json': '...' }`
-const fs = MemoryFileSystem.make(contents as never)
-const bytes = await Effect.runPromise(fs.readFile('/node_modules/demo/package.json'))
-const text = new TextDecoder().decode(bytes)
+// `contents` is a plain `Record<string, string|Uint8Array>` keyed by
+// `/node_modules/demo/…`, e.g. `'/node_modules/demo/package.json'`
+const fs = MemoryFileSystem.make(contents)
+
+const readManifest = Effect.gen(function*() {
+  const bytes = yield* fs.readFile('/node_modules/demo/package.json')
+  return new TextDecoder().decode(bytes)
+})
 ```
 
 Check a real tarball on disk:
@@ -85,29 +88,35 @@ Check a real tarball on disk:
 ```ts
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
 import { createPackageFromTarballData } from '@systemfsoftware/npm-package'
+import { Effect } from 'effect'
 import { readFile } from 'node:fs/promises'
 
-const data = await readFile('./my-package-1.2.3.tgz')
-const pkg = createPackageFromTarballData(data)
-const analysis = await checkPackage(pkg)
-// `analysis` is `Analysis` with `entrypoints` or `problems`
+const checkTarball = Effect.gen(function*() {
+  const data = yield* Effect.promise(() => readFile('./my-package-1.2.3.tgz'))
+  return yield* checkPackage(createPackageFromTarballData(data))
+})
+// `checkTarball` yields an `Analysis` (entrypoints + problems) or an `UntypedResult`
 ```
 
-Filter entry points:
+Filter entry points — still inside the same `Effect.gen`:
 
 ```ts
-const result = await checkPackage(pkg, {
+const result = yield * checkPackage(pkg, {
   includeEntrypoints: ['./utils'],
   excludeEntrypoints: [/^.\/internal\//],
   entrypoints: ['.', './cli'], // exhaustive override
 })
 ```
 
-Prefer the CLI for one-off checks:
+Prefer the CLI for one-off checks. Add it to the project so your lockfile pins it, then run it through your package manager:
 
 ```bash
-pnpm dlx @systemfsoftware/arethetypeswrong-cli ./my-package-1.2.3.tgz
+pnpm add -D @systemfsoftware/arethetypeswrong-cli
+pnpm exec attw ./my-package-1.2.3.tgz
 ```
+
+Its flags and profiles are documented in the
+[CLI package](https://github.com/systemfsoftware/are-the-types-wrong/tree/main/packages/arethetypeswrong-cli).
 
 ## Checks
 

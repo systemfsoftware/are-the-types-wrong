@@ -1,32 +1,52 @@
 # are-the-types-wrong
 
-> Predictable TypeScript type definitions for npm packages: check entry points, module kinds, and export bindings across Node and bundler resolution modes before publishing.
+> Predictable TypeScript types for npm packages: check entry points, module kinds, and export bindings under every resolution mode Node and bundlers use, before you publish.
 
-An Effect-powered workspace and monorepo housing the core analysis engine and CLI for checking TypeScript types and packaging conventions in npm distributions.
+A workspace housing the analysis engine and the `attw` CLI behind [arethetypeswrong.github.io](https://arethetypeswrong.github.io).
 
 ## Packages
 
-| Package                                                                          | Version | Description                                                                      |
-| -------------------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------- |
-| [`@systemfsoftware/arethetypeswrong-cli`](packages/arethetypeswrong-cli)         | `4.0.0` | Official CLI tool (`attw`) to check local tarballs, directories, or npm packages |
-| [`@systemfsoftware/arethetypeswrong`](packages/arethetypeswrong)                 | `7.0.0` | Programmatic analysis engine behind arethetypeswrong.github.io                   |
-| [`@systemfsoftware/arethetypeswrong-recipes`](packages/arethetypeswrong-recipes) | `0.1.0` | Problem-class recipes and fixture generation for attw tests                      |
+| Package                                                                          | What it is                                                                     |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| [`@systemfsoftware/arethetypeswrong-cli`](packages/arethetypeswrong-cli)         | The `attw` command — checks a tarball, a directory, or a published package     |
+| [`@systemfsoftware/arethetypeswrong`](packages/arethetypeswrong)                 | The analysis engine, as a library for your own tooling                         |
+| [`@systemfsoftware/arethetypeswrong-recipes`](packages/arethetypeswrong-recipes) | Synthetic packages, one per problem kind, that test the engine (not published) |
+
+## Install
+
+Add the CLI to the project you want to check, so your lockfile pins the version:
+
+```bash
+pnpm add -D @systemfsoftware/arethetypeswrong-cli
+```
+
+> [!NOTE]
+> Prefer a lockfile-pinned install over `npx`. A tool whose job is auditing what your package resolves should not itself be resolved fresh from the registry on every run.
 
 ## Quick Start
 
-Check a package tarball or local directory without global installation:
+Run the check from the package you want to audit. `--pack` runs `npm pack`, analyzes the resulting tarball, and deletes it:
 
 ```bash
-npx @systemfsoftware/arethetypeswrong-cli --pack .
+pnpm exec attw --pack .
 ```
 
-Or check an already-published npm package:
+A healthy package prints a row per entry point and a column per resolution mode:
 
-```bash
-npx @systemfsoftware/arethetypeswrong-cli --from-npm @systemfsoftware/arethetypeswrong-cli
+```text
+No problems found.
+Entrypoint  .  ./package.json
+node10      ✔  ✔
+node16-cjs  ✔  ✔
+node16-esm  ✔  ✔
+bundler     ✔  ✔
 ```
 
-To use the programmatic engine in a TypeScript or JavaScript project:
+Problems replace the `✔` with `✘` and are named above the table, so the exit code can gate CI. Use a [profile](packages/arethetypeswrong-cli/README.md#profiles) when your package deliberately supports only some resolution modes.
+
+## Using the Engine
+
+`checkPackage` returns an Effect, so compose it into your own program and let your edge interpret it once:
 
 ```bash
 pnpm add @systemfsoftware/arethetypeswrong
@@ -35,45 +55,41 @@ pnpm add @systemfsoftware/arethetypeswrong
 ```ts
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
 import { createPackageFromTarballData } from '@systemfsoftware/npm-package'
+import { Effect } from 'effect'
 import { readFile } from 'node:fs/promises'
 
-const tarball = await readFile('./my-package-1.0.0.tgz')
-const pkg = createPackageFromTarballData(tarball)
-const analysis = await checkPackage(pkg)
+const check = Effect.gen(function*() {
+  const tarball = yield* Effect.promise(() => readFile('./my-package-1.0.0.tgz'))
+  const analysis = yield* checkPackage(createPackageFromTarballData(tarball))
+
+  // analysis.entrypoints — a resolution record per subpath
+  // analysis.problems    — what failed, with the position of the offending syntax
+  return analysis
+})
 ```
+
+Interpret it once, at the edge of your program: `yield*` it into a larger Effect, or run that Effect with `NodeRuntime.runMain` if it is a script that terminates. Keep one edge — `runMain` sets the exit code and installs the interrupt handlers, and wrapping it in a second runtime leaves the outer edge with no reach over the fibers doing the work.
 
 ## What it Checks
 
-`are-the-types-wrong` simulates how Node and TypeScript resolve types and implementations under `node10`, `node16`, and `bundler` resolution modes:
+The engine simulates how Node and TypeScript resolve each entry point under the `node10`, `node16`, and `bundler` modes:
 
-- **Entry point resolution**: Verifies `exports`, `main`, `types`, and `bin` paths map to existing files.
-- **Module kind agreement**: Ensures dual-package files match their designated formats (`ESM` vs `CJS`).
-- **Export default & named export parity**: Detects mismatches between type definitions and JavaScript implementation exports.
-- **Unexpected module syntax**: Catches CJS constructs (`require`, `module.exports`) in ESM and ESM constructs (`import`, `export`) in CJS files.
-- **CJS-only default export**: Flags default exports that require `esModuleInterop` workarounds.
-
-## Output Matrix
-
-When running `attw`, results are formatted as a compatibility matrix across resolution modes:
-
-```text
-┌───────────────────┬──────────────────────┬──────────────────────┬─────────┐
-│ Entrypoint        │ node10               │ node16 (node)        │ bundler │
-├───────────────────┼──────────────────────┼──────────────────────┼─────────┤
-│ .                 │ 🟢 (CJS)             │ 🟢 (ESM)             │ 🟢      │
-│ ./utils           │ 🟢 (CJS)             │ 🟢 (ESM)             │ 🟢      │
-└───────────────────┴──────────────────────┴──────────────────────┴─────────┘
-```
+- **Entry point resolution** — do `exports`, `main`, `types`, and `bin` targets resolve to files that exist?
+- **Module kind agreement** — does a file's actual format (ESM, CJS, JSON) match what `type` and its extension imply?
+- **Export parity** — do default and named exports line up between the type entry point and the implementation?
+- **Unexpected module syntax** — `require`/`module.exports` inside an ESM file, or `import`/`export` inside a CJS file.
+- **CJS-only default export** — a CommonJS file whose only export is a default, which `esModuleInterop` consumers receive wrapped.
+- **Internal resolution errors** — TypeScript's own resolution failures, reported with the failing specifier and mode.
 
 ## Documentation
 
-- [CLI Documentation & Options](packages/arethetypeswrong-cli/README.md)
-- [Core Engine API Reference](packages/arethetypeswrong/README.md)
-- [Explanation of Problem Kinds](https://github.com/arethetypeswrong/arethetypeswrong.github.io/blob/main/docs/problems/NoResolution.md)
+- [CLI options, config file, and profiles](packages/arethetypeswrong-cli/README.md)
+- [Engine API reference](packages/arethetypeswrong/README.md)
+- [What each problem kind means](https://github.com/arethetypeswrong/arethetypeswrong.github.io/tree/main/docs/problems)
 
 ## Contributing
 
-Development setup, test execution, and CI workflow details: [CONTRIBUTING.md](CONTRIBUTING.md).
+Development setup, build, and test workflow: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
