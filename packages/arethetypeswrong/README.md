@@ -4,9 +4,6 @@
 
 Analyzes a package tarball the way Node and TypeScript will actually resolve it: entry-point discovery from `package.json` (`main`, `exports`, `bin`), per-entry `commonjs` / `ESM` resolution, and export-shape checks. Use it to catch publish-time mistakes locally instead of after `npm publish`.
 
-> [!WARNING]
-> This package is pre-1.0 (`4.0.0` under `v0` semver). Patch and minor releases may change the public API. Pin the version in production.
-
 ## What it does
 
 A single `checkPackage` call returns a structured analysis or a set of diagnostics. Each entry point is checked under every relevant resolution kind:
@@ -39,6 +36,7 @@ Check an in-memory package:
 ```ts
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
 import { createPackage } from '@systemfsoftware/npm-package'
+import { Effect } from 'effect'
 
 const pkg = createPackage(
   {
@@ -50,15 +48,16 @@ const pkg = createPackage(
   '1.0.0',
 )
 
-const result = await checkPackage(pkg)
+const result = await Effect.runPromise(checkPackage(pkg))
 
 if ('entrypoints' in result) {
-  console.log(Object.keys(result.entrypoints))
-  // e.g. [ ".", "./utils", "./features/*.js" ]
-} else {
+  console.log(Object.keys(result.entrypoints)) // [ "." ]
   for (const problem of result.problems) {
-    console.error(problem.kind, problem.entrypoint, problem.pos)
+    console.error(problem.kind, problem.entrypoint)
   }
+} else {
+  // result.types === false — the package ships no type declarations
+  console.error('no types found')
 }
 ```
 
@@ -85,29 +84,35 @@ Check a real tarball on disk:
 ```ts
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
 import { createPackageFromTarballData } from '@systemfsoftware/npm-package'
+import { Effect } from 'effect'
 import { readFile } from 'node:fs/promises'
 
 const data = await readFile('./my-package-1.2.3.tgz')
-const pkg = createPackageFromTarballData(data)
-const analysis = await checkPackage(pkg)
-// `analysis` is `Analysis` with `entrypoints` or `problems`
+const analysis = await Effect.runPromise(checkPackage(createPackageFromTarballData(data)))
+// `analysis` is an `Analysis` (entrypoints + problems) or an `UntypedResult`
 ```
 
 Filter entry points:
 
 ```ts
-const result = await checkPackage(pkg, {
-  includeEntrypoints: ['./utils'],
-  excludeEntrypoints: [/^.\/internal\//],
-  entrypoints: ['.', './cli'], // exhaustive override
-})
+const result = await Effect.runPromise(
+  checkPackage(pkg, {
+    includeEntrypoints: ['./utils'],
+    excludeEntrypoints: [/^.\/internal\//],
+    entrypoints: ['.', './cli'], // exhaustive override
+  }),
+)
 ```
 
-Prefer the CLI for one-off checks:
+Prefer the CLI for one-off checks. Add it to the project so your lockfile pins it, then run it through your package manager:
 
 ```bash
-pnpm dlx @systemfsoftware/arethetypeswrong-cli ./my-package-1.2.3.tgz
+pnpm add -D @systemfsoftware/arethetypeswrong-cli
+pnpm exec attw ./my-package-1.2.3.tgz
 ```
+
+Its flags and profiles are documented in the
+[CLI package](https://github.com/systemfsoftware/are-the-types-wrong/tree/main/packages/arethetypeswrong-cli).
 
 ## Checks
 
