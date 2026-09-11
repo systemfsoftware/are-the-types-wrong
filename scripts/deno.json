@@ -8,7 +8,9 @@
     "@std/collections/without-all": "jsr:@std/collections@1/without-all",
     "@std/front-matter": "jsr:@std/front-matter@1",
     "@std/fs/expand-glob": "jsr:@std/fs@1/expand-glob",
+    "@std/assert/equals": "jsr:@std/assert@1/equals",
     "@std/path": "jsr:@std/path@1",
+    "@std/yaml": "jsr:@std/yaml@1",
     "octokit": "npm:octokit@^4"
   }
 }

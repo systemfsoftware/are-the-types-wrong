@@ -20,7 +20,7 @@ The workspace packages owed a release in the current run — those whose manifes
 
 ### Release phase
 
-The stage the release pipeline decides it is in, derived rather than configured. `publish` when the release set is non-empty; `version` when nothing is owed but change intents are pending; `none` when neither holds. Each phase gates a distinct job, so a phase derived from a wrong signal skips work silently rather than failing.
+The stage the release pipeline decides it is in, derived rather than configured. `publish` when the release set is non-empty; `version` when nothing is owed but unconsumed change intents remain; `none` when neither holds. Each phase gates a distinct job, so a phase derived from a wrong signal skips work silently rather than failing. An intent file that still exists after consumption is recorded is not pending.
 
 ### Published version
 
