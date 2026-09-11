@@ -4,10 +4,26 @@
     "//"
   ],
   "tasks": {
+    "build": {
+      "dependsOn": [
+        "@systemfsoftware/arethetypeswrong#build"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "@systemfsoftware/arethetypeswrong#build"
+      ]
+    },
     "test": {
       "dependsOn": [
-        "^build",
-        "build"
+        "@systemfsoftware/arethetypeswrong#build"
+      ]
+    },
+    "test:contract": {
+      "dependsOn": [
+        "build",
+        "@systemfsoftware/arethetypeswrong#build",
+        "@systemfsoftware/arethetypeswrong-recipes#build"
       ]
     }
   }
