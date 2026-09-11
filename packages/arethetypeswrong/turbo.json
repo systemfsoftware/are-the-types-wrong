@@ -9,6 +9,9 @@
     },
     "typecheck": {
       "dependsOn": []
+    },
+    "lint": {
+      "dependsOn": []
     }
   }
 }
