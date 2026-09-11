@@ -40,6 +40,17 @@ let npmBin: string
 const analyzeJson = (stdout: string): Analysis => JSON.parse(stdout) as Analysis
 const entrypointsIn = (stdout: string): readonly string[] => Object.keys(analyzeJson(stdout).analysis.entrypoints)
 
+const manifestVersion = async (url: URL): Promise<string> => {
+  const manifest: unknown = JSON.parse(await readFile(url, 'utf8'))
+  if (
+    typeof manifest !== 'object' || manifest === null || !('version' in manifest) ||
+    typeof manifest.version !== 'string'
+  ) {
+    throw new Error(`${url.pathname} declares no string version`)
+  }
+  return manifest.version
+}
+
 const runCli = async (args: readonly string[], cwd = WORKDIR) => {
   const result = await container.exec([cliBin, ...args], { workingDir: cwd })
   return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }
@@ -197,8 +208,7 @@ afterAll(async () => {
 describe('attw, built by nix, run in a container', () => {
   test('prints the version of the CLI package it was built from', async () => {
     const result = await runCli(['--version'])
-    const manifest: unknown = JSON.parse(await readFile(CLI_MANIFEST_URL, 'utf8'))
-    const { version } = manifest as { readonly version: string }
+    const version = await manifestVersion(CLI_MANIFEST_URL)
 
     expect(result.exitCode).toBe(0)
     expect(result.stdout.trim()).toBe(`attw v${version}`)
