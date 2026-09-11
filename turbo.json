@@ -14,7 +14,8 @@
         "tsdown.config.*"
       ],
       "outputs": [
-        "dist/**"
+        "dist/**",
+        "apps/*/dist/**"
       ],
       "dependsOn": [
         "^build"

@@ -53,5 +53,6 @@ catalogs:
   attw:
     typescript: ^6.0.3
 packages:
+  - apps/*
   - packages/*
   - packages/arethetypeswrong/*

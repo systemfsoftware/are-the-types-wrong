@@ -34,9 +34,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .turbo/cache
-          key: turbo-${{ runner.os }}-checks-${{ github.sha }}
+          key: turbo-${{ runner.os }}-dist-${{ github.sha }}
           restore-keys: |
-            turbo-${{ runner.os }}-checks-
+            turbo-${{ runner.os }}-dist-
             turbo-${{ runner.os }}-
       # Root package.json `check:ci` is the one definition. Never re-enumerate its steps here.
       - name: Gate

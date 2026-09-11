@@ -18,7 +18,7 @@ fi
 git config user.name 'github-actions[bot]'
 git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 git switch --force-create "$BRANCH"
-git add -A -- packages .changeset pnpm-lock.yaml
+git add -A -- apps packages .changeset pnpm-lock.yaml
 git commit -m 'chore(release): version packages'
 git push --force origin "$BRANCH"
 

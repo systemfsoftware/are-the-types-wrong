@@ -7,8 +7,8 @@ versioning (`pnpm version -r`). One file per change, authored with:
 pnpm change --bump <none|patch|minor|major> --summary "<changelog entry>" [<pkg>...]
 ```
 
-- A PR that changes anything under `packages/` MUST ship with an intent here.
-  Root tooling is outside the verdict.
+- A PR that changes anything under an application or package path MUST ship with
+  an intent here. Root tooling is outside the verdict.
 - `--bump none` records a change that needs no release. A `none` on a
   behavior-visible change is the same silent non-release the gate exists to
   catch.

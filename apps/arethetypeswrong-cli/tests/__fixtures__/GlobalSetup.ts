@@ -21,6 +21,8 @@ const execFileAsync = promisify(execFile)
 
 // Manifest-list digest (not the amd64 platform digest) for tag 22-alpine, resolved 2026-08-10.
 const NODE_IMAGE = 'node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32'
+const PACK_TIMEOUT_MS = 5 * 60_000
+
 const WORKSPACE_PACKAGES = [
   '@systemfsoftware/arethetypeswrong-cli',
   '@systemfsoftware/arethetypeswrong',
@@ -42,6 +44,19 @@ let tarballDir: string | undefined
 let fixtureDir: string | undefined
 let recipeFixtureDir: string | undefined
 
+const packWorkspacePackage = (name: string, packDir: string) =>
+  execFileAsync(
+    'pnpm',
+    ['--filter', name, 'exec', 'pnpm', 'pack', '--config.ignore-scripts=true', '--pack-destination', packDir],
+    { cwd: REPO_ROOT, timeout: PACK_TIMEOUT_MS },
+  )
+
+const packFilterlessCatalogPackage = (name: string, packDir: string) =>
+  execFileAsync('pnpm', ['pack', '--pack-destination', packDir], {
+    cwd: join(CLI_DIR, 'node_modules', ...name.split('/')),
+    timeout: PACK_TIMEOUT_MS,
+  })
+
 export async function setup(project: TestProject): Promise<void> {
   const distEntry = join(CLI_DIR, 'dist', 'main.mjs')
   await access(distEntry).catch(() => {
@@ -61,22 +76,9 @@ export async function setup(project: TestProject): Promise<void> {
 
   const packDir = await mkdtemp(join(tmpdir(), 'attw-contract-packs-'))
   tarballDir = packDir
-  for (const workspacePackage of WORKSPACE_PACKAGES) {
-    await execFileAsync(
-      'pnpm',
-      [
-        '--filter',
-        workspacePackage,
-        'exec',
-        'pnpm',
-        'pack',
-        '--config.ignore-scripts=true',
-        '--pack-destination',
-        packDir,
-      ],
-      { cwd: REPO_ROOT },
-    )
-  }
+  await packWorkspacePackage('@systemfsoftware/arethetypeswrong-cli', packDir)
+  await packWorkspacePackage('@systemfsoftware/arethetypeswrong', packDir)
+  await packFilterlessCatalogPackage('@systemfsoftware/npm-package', packDir)
   const packed = (await readdir(packDir)).filter((entry) => entry.endsWith('.tgz'))
   if (packed.length !== WORKSPACE_PACKAGES.length) {
     throw new Error(
