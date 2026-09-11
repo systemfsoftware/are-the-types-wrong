@@ -13,7 +13,7 @@
     "typescript": "catalog:"
   },
   "license": "Apache-2.0",
-  "name": "starter",
+  "name": "are-the-types-wrong",
   "packageManager": "pnpm@11.21.0",
   "private": true,
   "scripts": {
