@@ -1,7 +1,7 @@
 import { recipes } from '@systemfsoftware/arethetypeswrong-recipes'
 import { packPackage } from '@systemfsoftware/npm-package'
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +15,7 @@ const execFileAsync = promisify(execFile)
 
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
+const CLI_MANIFEST_URL = new URL('../../arethetypeswrong-cli/package.json', import.meta.url)
 const BASE_IMAGE = 'alpine:3.20@sha256:c64c687cbea9300178b30c95835354e34c4e4febc4badfe27102879de0483b5e'
 const VERDACCIO_VERSION = '6.10.3'
 const REGISTRY_URL = 'http://127.0.0.1:4873'
@@ -186,7 +187,6 @@ beforeAll(async () => {
       '--loglevel=error',
     ]),
   )
-  requireStep('attw --version', await runCli(['--version']))
 })
 
 afterAll(async () => {
@@ -195,6 +195,15 @@ afterAll(async () => {
 })
 
 describe('attw, built by nix, run in a container', () => {
+  test('prints the version of the CLI package it was built from', async () => {
+    const result = await runCli(['--version'])
+    const manifest: unknown = JSON.parse(await readFile(CLI_MANIFEST_URL, 'utf8'))
+    const { version } = manifest as { readonly version: string }
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.trim()).toBe(`attw v${version}`)
+  })
+
   test('reports resolution problems for an untyped package', async () => {
     const result = await runCli([`${FIXTURES_DIR}/untyped-resolution.tgz`], FIXTURES_DIR)
 
