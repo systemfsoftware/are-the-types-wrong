@@ -10,7 +10,7 @@ const flags = parseArgs(Deno.args, {
 })
 
 const loaded = flags.captured ? await loadCaptured(flags.captured) : await loadWorkspaceCycle()
-const cycle = flags.unpublished ? await unpublishedOf(loaded) : loaded
+const cycle = flags.captured && flags.unpublished ? await unpublishedOf(loaded) : loaded
 
 if (flags.publish) {
   if (cycle.length === 0) {

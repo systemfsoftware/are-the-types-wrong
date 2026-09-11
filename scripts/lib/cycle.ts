@@ -14,27 +14,33 @@ type Pkg = {
   private?: boolean
 }
 
-export const loadWorkspaceCycle = async (): Promise<CycleEntry[]> => {
+type Released = { name: string; version: string }
+
+const publicPackages = async (): Promise<Released[]> => {
   const pkgs = JSON.parse(await run('pnpm', ['ls', '-r', '--json', '--depth=-1'])) as Pkg[]
-  const remote = new Set(
-    (await run('git', ['ls-remote', '--tags', 'origin']))
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => line.replace(/.*refs\/tags\//, '').replace(/\^\{\}$/, '')),
-  )
-  const cycle: CycleEntry[] = []
-  for (const pkg of pkgs) {
-    if (!pkg.name || !pkg.version || pkg.private) continue
-    const tag = `${pkg.name}@v${pkg.version}`
-    if (remote.has(tag)) continue
-    cycle.push({
-      name: pkg.name,
-      version: pkg.version,
-      tag,
-      changelog: join('.changeset', 'changelogs', `${pkg.name.replace('/', '!')}@${pkg.version}.md`),
-    })
-  }
-  return cycle
+  return pkgs
+    .filter((pkg): pkg is Pkg & Released => Boolean(pkg.name && pkg.version) && !pkg.private)
+    .map(({ name, version }) => ({ name, version }))
+}
+
+export const isPublished = async (name: string, version: string): Promise<boolean> => {
+  const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${version}`)
+  if (res.status === 404) return false
+  if (!res.ok) throw new Error(`registry returned ${res.status} for ${name}@${version}`)
+  return true
+}
+
+export const loadWorkspaceCycle = async (): Promise<CycleEntry[]> => {
+  const pkgs = await publicPackages()
+  const published = await Promise.all(pkgs.map(({ name, version }) => isPublished(name, version)))
+  return pkgs
+    .filter((_, i) => !published[i])
+    .map(({ name, version }) => ({
+      name,
+      version,
+      tag: `${name}@v${version}`,
+      changelog: join('.changeset', 'changelogs', `${name.replace('/', '!')}@${version}.md`),
+    }))
 }
 
 export const loadCaptured = async (path: string): Promise<CycleEntry[]> => {
@@ -44,11 +50,6 @@ export const loadCaptured = async (path: string): Promise<CycleEntry[]> => {
 }
 
 export const unpublishedOf = async (cycle: CycleEntry[]) => {
-  const published = await Promise.all(
-    cycle.map(async (entry) => {
-      const res = await fetch(`https://registry.npmjs.org/${entry.name.replace('/', '%2F')}/${entry.version}`)
-      return res.ok
-    }),
-  )
+  const published = await Promise.all(cycle.map(({ name, version }) => isPublished(name, version)))
   return cycle.filter((_, i) => !published[i])
 }
