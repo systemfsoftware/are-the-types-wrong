@@ -7,9 +7,6 @@
     "noImplicitReturns": false,
     "noImplicitOverride": false,
     "noPropertyAccessFromIndexSignature": false,
-    "customConditions": [
-      "@systemfsoftware/source"
-    ],
     "types": [
       "node"
     ],
