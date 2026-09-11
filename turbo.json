@@ -125,6 +125,10 @@
         "build"
       ]
     },
+    "test:e2e": {
+      "cache": false,
+      "outputLogs": "new-only"
+    },
     "clean": {
       "cache": false
     }

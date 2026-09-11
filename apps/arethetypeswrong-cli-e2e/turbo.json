@@ -1,0 +1,25 @@
+{
+  "$schema": "https://v2-10-1.turborepo.dev/schema.json",
+  "extends": [
+    "//"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": []
+    },
+    "lint": {
+      "dependsOn": []
+    },
+    "test": {
+      "dependsOn": []
+    },
+    "typecheck": {
+      "dependsOn": []
+    },
+    "test:e2e": {
+      "cache": false,
+      "outputLogs": "new-only",
+      "dependsOn": []
+    }
+  }
+}

@@ -34,8 +34,7 @@ export default defineConfig({
   plugins: [inlineSchemaTests()],
   test: {
     ...sharedConfig.test,
-    include: ['tests/**/*.test.ts', 'src/schema-laws.test.ts'],
+    include: ['src/**/*.test.ts'],
     includeSource: ['src/**/*.ts'],
-    exclude: [...sharedConfig.test.exclude, 'tests/cli-contract.integration.test.ts'],
   },
 })

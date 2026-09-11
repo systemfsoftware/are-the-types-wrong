@@ -30,6 +30,7 @@
     "precommit": "pnpm exec lint-staged --no-revert --config .lintstagedrc.js",
     "prepare": "husky",
     "test": "turbo --concurrency=${TURBO_CONCURRENCY:-50%} test",
+    "test:e2e": "turbo --concurrency=${TURBO_CONCURRENCY:-50%} test:e2e",
     "typecheck": "turbo --concurrency=${TURBO_CONCURRENCY:-50%} --continue typecheck typecheck:node",
     "typecheck:node": "tsc -p tsconfig.node.json --noEmit"
   },

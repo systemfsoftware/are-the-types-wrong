@@ -1,0 +1,32 @@
+{
+  "name": "@systemfsoftware/arethetypeswrong-cli-e2e",
+  "private": true,
+  "version": "0.1.0",
+  "description": "End-to-end lane for the attw CLI: nix artifact in a container, Verdaccio under process-compose",
+  "author": "Ryan Lee <drdgvhbh@gmail.com>",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/systemfsoftware/are-the-types-wrong.git",
+    "directory": "apps/arethetypeswrong-cli-e2e"
+  },
+  "type": "module",
+  "scripts": {
+    "lint": "f=${OXLINT_FORMAT:-${AGENT:+agent}}; oxlint . --format=${f:-default}",
+    "test:e2e": "vitest run",
+    "typecheck": "tsc --noEmit --incremental"
+  },
+  "devDependencies": {
+    "@systemfsoftware/arethetypeswrong-recipes": "workspace:*",
+    "@systemfsoftware/npm-package": "catalog:",
+    "@systemfsoftware/tsconfig": "catalog:",
+    "@types/node": "catalog:",
+    "oxlint": "catalog:",
+    "testcontainers": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
