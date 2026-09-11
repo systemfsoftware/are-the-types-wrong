@@ -26,8 +26,8 @@ const PACK_TIMEOUT_MS = 5 * 60_000
 const WORKSPACE_PACKAGES = [
   '@systemfsoftware/arethetypeswrong-cli',
   '@systemfsoftware/arethetypeswrong',
-  '@systemfsoftware/npm-package',
 ] as const
+const NON_WORKSPACE_PACKAGES = ['@systemfsoftware/npm-package'] as const
 
 // This file sits in `tests/__fixtures__/`, so the package root is two levels up and
 // the workspace root is five. Both were one level short, which sent the lane looking
@@ -44,18 +44,24 @@ let tarballDir: string | undefined
 let fixtureDir: string | undefined
 let recipeFixtureDir: string | undefined
 
-const packWorkspacePackage = (name: string, packDir: string) =>
-  execFileAsync(
-    'pnpm',
-    ['--filter', name, 'exec', 'pnpm', 'pack', '--config.ignore-scripts=true', '--pack-destination', packDir],
-    { cwd: REPO_ROOT, timeout: PACK_TIMEOUT_MS },
-  )
+const packWorkspacePackages = async (names: readonly string[], packDir: string) => {
+  for (const name of names) {
+    await execFileAsync(
+      'pnpm',
+      ['--filter', name, 'exec', 'pnpm', 'pack', '--config.ignore-scripts=true', '--pack-destination', packDir],
+      { cwd: REPO_ROOT, timeout: PACK_TIMEOUT_MS },
+    )
+  }
+}
 
-const packFilterlessCatalogPackage = (name: string, packDir: string) =>
-  execFileAsync('pnpm', ['pack', '--pack-destination', packDir], {
-    cwd: join(CLI_DIR, 'node_modules', ...name.split('/')),
-    timeout: PACK_TIMEOUT_MS,
-  })
+const packNonWorkspacePackages = async (names: readonly string[], packDir: string) => {
+  for (const name of names) {
+    await execFileAsync('pnpm', ['pack', '--pack-destination', packDir], {
+      cwd: join(CLI_DIR, 'node_modules', ...name.split('/')),
+      timeout: PACK_TIMEOUT_MS,
+    })
+  }
+}
 
 export async function setup(project: TestProject): Promise<void> {
   const distEntry = join(CLI_DIR, 'dist', 'main.mjs')
@@ -76,13 +82,13 @@ export async function setup(project: TestProject): Promise<void> {
 
   const packDir = await mkdtemp(join(tmpdir(), 'attw-contract-packs-'))
   tarballDir = packDir
-  await packWorkspacePackage('@systemfsoftware/arethetypeswrong-cli', packDir)
-  await packWorkspacePackage('@systemfsoftware/arethetypeswrong', packDir)
-  await packFilterlessCatalogPackage('@systemfsoftware/npm-package', packDir)
+  await packWorkspacePackages(WORKSPACE_PACKAGES, packDir)
+  await packNonWorkspacePackages(NON_WORKSPACE_PACKAGES, packDir)
+  const expectedTarballs = WORKSPACE_PACKAGES.length + NON_WORKSPACE_PACKAGES.length
   const packed = (await readdir(packDir)).filter((entry) => entry.endsWith('.tgz'))
-  if (packed.length !== WORKSPACE_PACKAGES.length) {
+  if (packed.length !== expectedTarballs) {
     throw new Error(
-      `expected ${WORKSPACE_PACKAGES.length} tarballs in ${packDir}, found ${packed.length}: ${packed.join(', ')}`,
+      `expected ${expectedTarballs} tarballs in ${packDir}, found ${packed.length}: ${packed.join(', ')}`,
     )
   }
 
