@@ -61,16 +61,9 @@ const nixBuild = async (installable: string, extraArgs: readonly string[] = []):
   return stdout.trim()
 }
 
-const packClosure = async (storePaths: readonly string[], tarPath: string): Promise<void> => {
-  const { stdout } = await execFileAsync('nix', ['path-info', '-r', ...storePaths])
-  const closure = stdout.trim().split('\n')
-  await execFileAsync('tar', ['-cf', tarPath, '-C', '/', ...closure.map((path) => path.slice(1))])
-}
-
-const storePathNamed = async (attwStore: string, pattern: RegExp): Promise<string> => {
-  const { stdout } = await execFileAsync('nix', ['path-info', '-r', attwStore])
-  const match = stdout.trim().split('\n').find((path) => pattern.test(path))
-  if (match === undefined) throw new Error(`${pattern} missing from ${attwStore} closure`)
+const namedIn = (closure: readonly string[], pattern: RegExp): string => {
+  const match = closure.find((path) => pattern.test(path))
+  if (match === undefined) throw new Error(`${pattern} missing from closure`)
   return match
 }
 
@@ -92,31 +85,35 @@ const writeRegistryFixture = async (dir: string): Promise<void> => {
 beforeAll(async () => {
   scratch = await mkdtemp(join(tmpdir(), 'attw-e2e-'))
 
-  const attwStore = await nixBuild('.#attw')
-  const processComposeStore = await nixBuild('nixpkgs#process-compose', ['--inputs-from', '.'])
-  const nodeStore = await storePathNamed(attwStore, /[-]nodejs-\d/)
-  const bashStore = await storePathNamed(attwStore, /[-]bash-\d/)
+  const [attwStore, processComposeStore] = await Promise.all([
+    nixBuild('.#attw'),
+    nixBuild('nixpkgs#process-compose', ['--inputs-from', '.']),
+  ])
+  const { stdout } = await execFileAsync('nix', ['path-info', '-r', attwStore, processComposeStore])
+  const closure = stdout.trim().split('\n')
+  const nodeStore = namedIn(closure, /[-]nodejs-\d/)
+  const bashStore = namedIn(closure, /[-]bash-\d/)
   cliBin = `${attwStore}/bin/attw`
   npmBin = `${nodeStore}/bin/npm`
 
   const verdaccioDir = join(scratch, 'verdaccio')
-  await execFileAsync(npmBin, [
-    'install',
-    '--prefix',
-    verdaccioDir,
-    `verdaccio@${VERDACCIO_VERSION}`,
-    '--omit=dev',
-    '--no-fund',
-    '--no-audit',
-  ])
-
-  const closureTarPath = join(scratch, 'closure.tar')
-  await packClosure([attwStore, processComposeStore], closureTarPath)
-
   const fixturesDir = join(scratch, 'fixtures')
-  await writeRecipeFixtures(fixturesDir)
   const registryFixtureDir = join(scratch, 'registry-fixture')
-  await writeRegistryFixture(registryFixtureDir)
+  const closureTarPath = join(scratch, 'closure.tar')
+  await Promise.all([
+    execFileAsync('tar', ['-cf', closureTarPath, '-C', '/', ...closure.map((path) => path.slice(1))]),
+    execFileAsync(npmBin, [
+      'install',
+      '--prefix',
+      verdaccioDir,
+      `verdaccio@${VERDACCIO_VERSION}`,
+      '--omit=dev',
+      '--no-fund',
+      '--no-audit',
+    ]),
+    writeRecipeFixtures(fixturesDir),
+    writeRegistryFixture(registryFixtureDir),
+  ])
 
   container = await new GenericContainer(BASE_IMAGE)
     .withCopyFilesToContainer([
