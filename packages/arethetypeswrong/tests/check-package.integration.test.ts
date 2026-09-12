@@ -1,32 +1,26 @@
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
 import { recipes } from '@systemfsoftware/arethetypeswrong-recipes'
-import { it, layer, makeFeature, StepError } from '@systemfsoftware/effect-gherkin-spec'
+import { Gherkin, Given, it, layer, makeFeature, Then, When } from '@systemfsoftware/effect-gherkin-spec'
 import { Effect } from 'effect'
 import { expect } from 'vitest'
 
-/**
- * CheckPackage — analysis of a synthetic recipe package.
- *
- * Drives the real `checkPackage` analysis over a recipe-built package,
- * proving that the in-memory constructor path yields an analysable package
- * without reading a committed tarball.
- */
 const Feature = makeFeature({ it, layer })
 
-Feature('CheckPackage — analysis of a synthetic recipe package').body(({ scenario }) => {
+Feature('Analysis of a synthetic named-exports package').body(({ scenario }) => {
   scenario(
-    'Should_ReturnAnalysis_When_RecipePackageIsAnalysed',
-    Effect.gen(function*() {
-      const pkg = recipes.NamedExports()
-      const result = yield* checkPackage(pkg).pipe(
-        Effect.mapError((cause) => new StepError({ keyword: 'scenario', text: 'checkPackage failed', cause })),
-      )
-      if ('packageName' in result) {
-        expect(result.packageName).toBe('named-exports')
-      }
-      if ('entrypoints' in result) {
-        expect(Object.keys(result.entrypoints)).toContain('.')
-      }
-    }),
+    'the named-exports recipe analyses to its root entrypoint',
+    Gherkin.Do.pipe(
+      Given('the named-exports recipe package')('pkg', () => Effect.sync(() => recipes.NamedExports())),
+      When('the package is analysed')('result', ({ pkg }) => checkPackage(pkg)),
+      Then('the analysis names the package and reports its root entrypoint')(({ result }) =>
+        Effect.sync(() => {
+          expect(result.packageName).toBe('named-exports')
+          expect('entrypoints' in result).toBe(true)
+          if ('entrypoints' in result) {
+            expect(Object.keys(result.entrypoints)).toContain('.')
+          }
+        })
+      ),
+    ),
   )
 })
