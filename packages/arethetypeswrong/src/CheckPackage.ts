@@ -1,6 +1,6 @@
 import type { Package } from '@systemfsoftware/npm-package'
 import { init as initCjsLexer } from 'cjs-module-lexer'
-import { Effect, MutableHashMap, Option } from 'effect'
+import { Effect, Match, MutableHashMap, Option } from 'effect'
 import checks from './internal/checks/index.js'
 import type { AnyCheck, CheckDependenciesContext } from './internal/DefineCheck.js'
 import { getBuildTools, getEntrypointInfo, getModuleKinds } from './internal/GetEntrypointInfo.js'
@@ -69,18 +69,18 @@ export const checkPackage = (
     } else {
       pkg = input
     }
-    let types: AnalysisTypes | false
-    if (companion !== undefined) {
-      types = {
-        kind: '@types',
+    const types: AnalysisTypes | false = Match.value({
+      companion,
+      hasTypes: companion === undefined && containsTypes(pkg),
+    }).pipe(
+      Match.when({ companion: Match.defined }, ({ companion }) => ({
+        kind: '@types' as const,
         ...companion,
         definitelyTypedUrl: getHomepage(pkg, companion.packageName),
-      }
-    } else if (containsTypes(pkg)) {
-      types = { kind: 'included' }
-    } else {
-      types = false
-    }
+      })),
+      Match.when({ hasTypes: true }, () => ({ kind: 'included' as const })),
+      Match.orElse(() => false as const),
+    )
     const { packageName, packageVersion } = pkg
     if (types === false) {
       return { packageName, packageVersion, types }

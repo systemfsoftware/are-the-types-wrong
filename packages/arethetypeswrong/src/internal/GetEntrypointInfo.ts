@@ -1,7 +1,8 @@
 import type { Package } from '@systemfsoftware/npm-package'
-import { Effect } from 'effect'
+import { Effect, Match } from 'effect'
 import ts from 'typescript'
 import type { CheckPackageOptions } from '../CheckPackage.js'
+import { getSubpaths, hasExportTarget } from '../EntrypointDiscovery.js'
 import type {
   BuildTool,
   EntrypointInfo,
@@ -35,10 +36,10 @@ function getEntrypoints(fs: Package, exportsObject: unknown, options: CheckPacka
     }
     return proxies
   }
-  const detectedSubpaths = getSubpaths(exportsObject)
-  if (detectedSubpaths.length === 0 && hasExportTarget(exportsObject)) {
-    detectedSubpaths.push('.')
-  }
+  const detectedSubpaths = Match.value(getSubpaths(exportsObject)).pipe(
+    Match.when((subpaths) => subpaths.length === 0 && hasExportTarget(exportsObject), () => ['.']),
+    Match.orElse((subpaths) => [...subpaths]),
+  )
   const included = unique([
     ...detectedSubpaths,
     ...(options?.includeEntrypoints?.map((e) => formatEntrypointString(e, fs.packageName)) ?? []),
@@ -69,32 +70,6 @@ function formatEntrypointString(path: string, packageName: string) {
     formatted = `./${path}`
   }
   return formatted.trim()
-}
-
-function getSubpaths(exportsObject: unknown): string[] {
-  if (exportsObject === null || typeof exportsObject !== 'object' || Array.isArray(exportsObject)) {
-    return []
-  }
-  const keys = Object.keys(exportsObject)
-  if (keys[0]?.startsWith('.')) {
-    return keys.filter((key) => hasExportTarget(Object.getOwnPropertyDescriptor(exportsObject, key)?.value))
-  }
-  return keys.flatMap((key) => getSubpaths(Object.getOwnPropertyDescriptor(exportsObject, key)?.value))
-}
-
-function hasExportTarget(exportsObject: unknown): boolean {
-  if (exportsObject === null || exportsObject === undefined) {
-    return false
-  }
-  if (typeof exportsObject !== 'object') {
-    return true
-  }
-  if (Array.isArray(exportsObject)) {
-    return exportsObject.some(hasExportTarget)
-  }
-  return Object.keys(exportsObject).some((key) =>
-    hasExportTarget(Object.getOwnPropertyDescriptor(exportsObject, key)?.value)
-  )
 }
 
 function getProxyDirectories(rootDir: string, fs: Package) {
