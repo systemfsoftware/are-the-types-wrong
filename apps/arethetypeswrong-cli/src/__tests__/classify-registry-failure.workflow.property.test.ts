@@ -118,7 +118,12 @@ const holdsAuthoredModel = (generated: RegistryObservation): boolean => {
   )
 }
 
-const debugJson = (value: unknown): string => JSON.stringify(value)
+const debugJson = (value: unknown): string =>
+  Match.value(Schema.encodeUnknownResult(Schema.fromJsonString(Schema.Unknown))(value)).pipe(
+    Match.tag('Success', ({ success: text }) => text),
+    Match.tag('Failure', () => ''),
+    Match.exhaustive,
+  )
 
 const holdsRenderedDocument = (failure: AttwFailure, isTty: boolean): boolean => {
   const outcome = failureOutcome(failure, { isTty })

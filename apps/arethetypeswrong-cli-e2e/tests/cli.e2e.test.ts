@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { promisify } from 'node:util'
+import { inspect, promisify } from 'node:util'
 import { GenericContainer, type StartedTestContainer } from 'testcontainers'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
@@ -58,11 +58,11 @@ const analyzeJson = (stdout: string): DecodedEnvelope => {
 const problemKinds = (problems: readonly unknown[]): readonly string[] =>
   problems.map((problem) => {
     if (typeof problem !== 'object' || problem === null || !('kind' in problem)) {
-      throw new Error(`attw printed a problem without a kind: ${JSON.stringify(problem)}`)
+      throw new Error(`attw printed a problem without a kind: ${inspect(problem)}`)
     }
     const { kind } = problem
     if (typeof kind !== 'string') {
-      throw new Error(`attw printed a problem whose kind is not a string: ${JSON.stringify(problem)}`)
+      throw new Error(`attw printed a problem whose kind is not a string: ${inspect(problem)}`)
     }
     return kind
   })
@@ -635,7 +635,7 @@ describe('attw, built by nix, run in a container', () => {
     const decoded = Schema.decodeUnknownResult(EnvelopeIdentity)(JSON.parse(analyzed.stdout))
     if (!Result.isSuccess(decoded)) {
       throw new Error(
-        `attw printed an analyze envelope the documented contract does not accept: ${JSON.stringify(decoded)}`,
+        `attw printed an analyze envelope the documented contract does not accept: ${inspect(decoded)}`,
       )
     }
     expect(decoded.success.status).toBe('ok')

@@ -1,6 +1,6 @@
 import { PackageStore, PackageStoreLive, PackageStoreStub } from '@systemfsoftware/arethetypeswrong'
 import { Gherkin, Given, it, layer, makeFeature, pairwiseFor, Then, When } from '@systemfsoftware/effect-gherkin-spec'
-import { Effect, Predicate } from 'effect'
+import { Effect, Predicate, Schema } from 'effect'
 import { afterEach, expect, vi } from 'vitest'
 
 const Feature = makeFeature({ it, layer })
@@ -19,12 +19,14 @@ const urlOf = (input: RequestInfo | URL): string => {
   return input.url
 }
 
+const encodeJsonText = Schema.encodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))
+
 const answerWith = (document: unknown): string => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       if (urlOf(input) === tarballUrl) return new Response(recordedTarball, { status: 200 })
-      return new Response(JSON.stringify(document), {
+      return new Response(await Effect.runPromise(encodeJsonText(document)), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       })

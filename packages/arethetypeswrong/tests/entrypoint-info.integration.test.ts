@@ -1,10 +1,12 @@
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
 import { Gherkin, Given, it, layer, makeFeature, Then, When } from '@systemfsoftware/effect-gherkin-spec'
 import { createPackage } from '@systemfsoftware/npm-package'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { expect } from 'vitest'
 
 const Feature = makeFeature({ it, layer })
+
+const encodeJsonText = Schema.encodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))
 
 const reachableSubpaths = [
   { subpath: './features/*.js', shape: 'a wildcard' },
@@ -13,30 +15,33 @@ const reachableSubpaths = [
 
 const blockedSubpaths = [{ subpath: './features/private-internal/*' }, { subpath: './blocked' }] as const
 
-const authoredPackage = () =>
-  createPackage({
+const authoredManifest = {
+  name: 'test',
+  version: '1.0.0',
+  exports: {
+    './features/*.js': './src/features/*.js',
+    './features/private-internal/*': null,
+    './browser': {
+      node: null,
+      default: './dist/browser.js',
+    },
+    './blocked': {
+      node: null,
+      default: null,
+    },
+  },
+}
+
+const authoredPackage = Effect.gen(function*() {
+  return createPackage({
     'dist/browser.d.ts': 'export {};',
     'dist/browser.js': 'export {};',
     'index.d.ts': 'export {};',
-    'package.json': JSON.stringify({
-      name: 'test',
-      version: '1.0.0',
-      exports: {
-        './features/*.js': './src/features/*.js',
-        './features/private-internal/*': null,
-        './browser': {
-          node: null,
-          default: './dist/browser.js',
-        },
-        './blocked': {
-          node: null,
-          default: null,
-        },
-      },
-    }),
+    'package.json': yield* encodeJsonText(authoredManifest),
     'src/features/public.js': 'export {};',
     'src/features/private-internal/hidden.js': 'export {};',
   })
+})
 
 Feature('Entrypoint discovery across an export map with blocked subpaths').body(({ scenarioOutline }) => {
   scenarioOutline(
@@ -46,7 +51,7 @@ Feature('Entrypoint discovery across an export map with blocked subpaths').body(
       Gherkin.Do.pipe(
         Given('a package whose export map reaches one subpath only under some condition')(
           'pkg',
-          () => Effect.sync(authoredPackage),
+          () => authoredPackage,
         ),
         When('the package is analysed')('analysed', ({ pkg }) => checkPackage(pkg)),
         Then('the analysis reports the subpath with the authored wildcard shape')(({ analysed }) => {
@@ -67,7 +72,7 @@ Feature('Entrypoint discovery across an export map with blocked subpaths').body(
       Gherkin.Do.pipe(
         Given('a package whose export map blocks a private subpath under every condition')(
           'pkg',
-          () => Effect.sync(authoredPackage),
+          () => authoredPackage,
         ),
         When('the package is analysed')('analysed', ({ pkg }) => checkPackage(pkg)),
         Then('the analysis reports no entrypoint for the blocked subpath')(({ analysed }) => {
