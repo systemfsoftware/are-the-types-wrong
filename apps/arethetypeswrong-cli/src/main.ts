@@ -12,7 +12,7 @@ import * as Command from 'effect/unstable/cli/Command'
 import manifest from '../package.json'
 
 import { AttwConfigFileLayer } from './AttwConfigExecutor.js'
-import { attwCommand } from './AttwHandler.js'
+import { attwCommand, renderFailure } from './AttwHandler.js'
 import { FilesystemLive } from './FilesystemAdapter.js'
 import { PackRunnerLive } from './PackRunnerAdapter.js'
 import { TerminalLive } from './TerminalAdapter.js'
@@ -32,6 +32,8 @@ const nodeRuntime = Layer.mergeAll(
   PackRunnerLive.pipe(Layer.provide(nodeSpawnerLayer)),
 )
 
+const terminalLayer = Layer.provideMerge(TerminalLive, nodeBase)
+
 const program = main(process.argv.slice(2)).pipe(
   Effect.withLogSpan('attw'),
 )
@@ -40,4 +42,14 @@ const provided = program.pipe(
   Effect.provide(Layer.provideMerge(Layer.mergeAll(cliLayer, cliConfigLayer), nodeRuntime)),
 )
 
-runMain(provided)
+const handled = provided.pipe(
+  Effect.catchTag('ConfigInvalid', (failure) =>
+    Effect.gen(function*() {
+      const exitCode = yield* renderFailure(failure)
+      yield* Effect.sync(() => {
+        process.exitCode = exitCode
+      })
+    }).pipe(Effect.provide(terminalLayer))),
+)
+
+runMain(handled)

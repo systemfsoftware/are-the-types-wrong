@@ -66,7 +66,7 @@ const unwrap = <A>(opt: Option.Option<A>): A | undefined => {
   return undefined
 }
 
-const renderFailure = (failure: AttwFailure): Effect.Effect<number, never, Terminal> =>
+export const renderFailure = (failure: AttwFailure): Effect.Effect<number, never, Terminal> =>
   Effect.gen(function*() {
     const terminal = yield* Terminal
     const outcome = failureOutcome(failure, { isTty: terminal.isTty })

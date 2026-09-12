@@ -1,35 +1,24 @@
-import { ConfigProvider, Effect, Layer, Schema } from 'effect'
+import { ConfigProvider, Effect, Layer } from 'effect'
 import * as PlatformFs from 'effect/FileSystem'
 import * as PlatformPathMod from 'effect/Path'
 
-const readAttwConfigJson: Effect.Effect<
-  unknown,
-  never,
+import { attwConfigUnreadable, decodeAttwConfigText } from './AttwConfig.js'
+import type { ConfigInvalid } from './Failure.schema.js'
+
+const configFileName = '.attw.json'
+
+const configProviderEffect: Effect.Effect<
+  ConfigProvider.ConfigProvider,
+  ConfigInvalid,
   PlatformFs.FileSystem | PlatformPathMod.Path
 > = Effect.gen(function*() {
   const fs = yield* PlatformFs.FileSystem
   const path = yield* PlatformPathMod.Path
-  const cwd = process.cwd()
-  for (const candidate of ['.attw.json', path.join(cwd, '.attw.json')]) {
-    const text = yield* fs.readFileString(candidate).pipe(Effect.orElseSucceed(() => undefined))
-    if (text === undefined) continue
-    const parsed = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))(text).pipe(
-      Effect.orElseSucceed(() => undefined),
-    )
-    if (parsed === undefined) continue
-    return parsed
-  }
-  return null
-})
-
-const configProviderEffect: Effect.Effect<
-  ConfigProvider.ConfigProvider,
-  never,
-  PlatformFs.FileSystem | PlatformPathMod.Path
-> = Effect.gen(function*() {
-  const json = yield* readAttwConfigJson
-  if (json === null) return ConfigProvider.fromUnknown({})
-  return ConfigProvider.fromUnknown(json)
+  const filePath = path.join(process.cwd(), configFileName)
+  const exists = yield* fs.exists(filePath).pipe(Effect.orElseSucceed(() => false))
+  if (!exists) return ConfigProvider.fromUnknown({})
+  const text = yield* fs.readFileString(filePath).pipe(Effect.mapError(() => attwConfigUnreadable(filePath)))
+  return ConfigProvider.fromUnknown(yield* Effect.fromResult(decodeAttwConfigText(text, filePath)))
 })
 
 /**
@@ -44,6 +33,6 @@ const configProviderEffect: Effect.Effect<
  */
 export const AttwConfigFileLayer: Layer.Layer<
   never,
-  never,
+  ConfigInvalid,
   PlatformFs.FileSystem | PlatformPathMod.Path
 > = ConfigProvider.layerAdd(configProviderEffect)
