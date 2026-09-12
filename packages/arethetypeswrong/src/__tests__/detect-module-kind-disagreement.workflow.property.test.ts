@@ -76,22 +76,6 @@ const reportedProblem = (raw: RawObservation): ReportedProblem =>
     },
   )
 
-const expectedProblemKind = (raw: RawObservation): ExpectedProblemKind =>
-  Match.value(observationOf(raw)).pipe(
-    Match.tag('ModuleKindObservationMissing', (): ExpectedProblemKind => null),
-    Match.tag('ModuleKindObservationComplete', ({ typesModuleKind, implementationModuleKind }) =>
-      Match.value({ types: typesModuleKind.detectedKind, implementation: implementationModuleKind.detectedKind }).pipe(
-        Match.when({ types: ESNextModuleKind, implementation: CommonJSModuleKind }, (): ExpectedProblemKind =>
-          'FalseESM'),
-        Match.when({ types: CommonJSModuleKind, implementation: ESNextModuleKind }, (): ExpectedProblemKind =>
-          'FalseCJS'),
-        Match.orElse((): ExpectedProblemKind =>
-          null
-        ),
-      )),
-    Match.exhaustive,
-  )
-
 it.prop(
   '∀observation_ModuleKindDisagreement_≡PublishedDeclaration',
   [observationArbitrary],
@@ -108,3 +92,46 @@ it.prop('∀observation_ModuleKindDisagreement_≡ExpectedKind', [observationArb
     Match.orElse((problem) => problem.kind === expected),
   )
 })
+
+type DecisionChannel = 'refusal' | 'agreement' | 'FalseESM' | 'FalseCJS'
+
+const decisionChannel = (raw: RawObservation): DecisionChannel =>
+  Result.match(
+    detectModuleKindDisagreement(new DetectModuleKindDisagreementCommand({ observation: observationOf(raw) })),
+    {
+      onFailure: (): DecisionChannel => 'refusal',
+      onSuccess: (decision) =>
+        Match.value(decision).pipe(
+          Match.tag('FalseEsmDeclared', (): DecisionChannel => 'FalseESM'),
+          Match.tag('FalseCjsDeclared', (): DecisionChannel => 'FalseCJS'),
+          Match.tag('ModuleKindsAgree', (): DecisionChannel => 'agreement'),
+          Match.exhaustive,
+        ),
+    },
+  )
+
+const expectedDecisionChannel = (raw: RawObservation): DecisionChannel =>
+  Match.value(observationOf(raw)).pipe(
+    Match.tag('ModuleKindObservationMissing', (): DecisionChannel => 'refusal'),
+    Match.tag('ModuleKindObservationComplete', ({ typesModuleKind, implementationModuleKind }) =>
+      Match.value({ types: typesModuleKind.detectedKind, implementation: implementationModuleKind.detectedKind }).pipe(
+        Match.when({ types: ESNextModuleKind, implementation: CommonJSModuleKind }, (): DecisionChannel =>
+          'FalseESM'),
+        Match.when({ types: CommonJSModuleKind, implementation: ESNextModuleKind }, (): DecisionChannel => 'FalseCJS'),
+        Match.orElse((): DecisionChannel => 'agreement'),
+      )),
+    Match.exhaustive,
+  )
+
+const expectedProblemKind = (raw: RawObservation): ExpectedProblemKind =>
+  Match.value(expectedDecisionChannel(raw)).pipe(
+    Match.when('refusal', (): ExpectedProblemKind => null),
+    Match.when('agreement', (): ExpectedProblemKind => null),
+    Match.orElse((kind): ExpectedProblemKind => kind),
+  )
+
+it.prop(
+  '∀observation_ModuleKindDisagreement_≡DecisionChannel',
+  [observationArbitrary],
+  ([observation]) => decisionChannel(observation) === expectedDecisionChannel(observation),
+)
