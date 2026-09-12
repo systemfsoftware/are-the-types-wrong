@@ -1,6 +1,10 @@
 import * as S from 'effect/Schema'
 
-import { ModuleKindSchema } from '../../src/Problem.schema.js'
+const ModuleKindSchema = S.Struct({
+  detectedKind: S.Literals([1, 99]),
+  detectedReason: S.Literals(['extension', 'type', 'no:type']),
+  reasonFileName: S.String,
+})
 
 export const ModuleKindObservation = S.Struct({
   typesFileName: S.NullOr(S.String),
