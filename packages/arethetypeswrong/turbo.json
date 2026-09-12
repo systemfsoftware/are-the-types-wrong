@@ -8,7 +8,10 @@
       "dependsOn": []
     },
     "typecheck": {
-      "dependsOn": []
+      "dependsOn": [
+        "^build",
+        "build"
+      ]
     }
   }
 }
