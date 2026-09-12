@@ -418,7 +418,7 @@ describe('attw, built by nix, run in a container', () => {
     expect(analyzeJson(result.stdout).keys).toContain('entrypoints')
   })
 
-  test('emits json naming the analyzed package and its problems', async () => {
+  test('emits the status-tagged envelope naming the analyzed package for an untyped fixture', async () => {
     const result = await runCli([`${FIXTURES_DIR}/untyped-resolution.tgz`, '-f', 'json'], FIXTURES_DIR)
 
     expect(result.exitCode).toBe(1)
@@ -502,6 +502,28 @@ describe('attw, built by nix, run in a container', () => {
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe('')
     expect(failureDocument(result.stderr).kind).toBe('RegistryUnreachable')
+  })
+
+  test('reports a missing registry version as RegistryNotFound with a typed document', async () => {
+    const result = await runCli([
+      '--from-npm',
+      `${REGISTRY_FIXTURE_NAME}@999.999.999`,
+      '--registry',
+      REGISTRY_URL,
+    ])
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toBe('')
+    expect(failureDocument(result.stderr).kind).toBe('RegistryNotFound')
+  })
+
+  test('ships the agent artifacts in the published package', async () => {
+    const manifest = JSON.parse(await readFile(CLI_MANIFEST_URL, 'utf8')) as { files?: readonly string[] }
+    for (const artifact of ['SKILL.md', 'CONTEXT.md']) {
+      expect(manifest.files, `package.json files must list ${artifact}`).toContain(artifact)
+      await expect(readFile(new URL(`../../arethetypeswrong-cli/${artifact}`, import.meta.url), 'utf8')).resolves
+        .toBeTruthy()
+    }
   })
 
   test('refuses a package spec welded to URL syntax before any registry call', async () => {

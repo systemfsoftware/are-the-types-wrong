@@ -57,7 +57,9 @@ mechanism.
 4. **Accept the default mask unless the task needs the graph.** The default omits the `entrypoints`
    graph, `buildTools`, `programInfo`, and per-problem `trace` arrays. Widen with `--include
    <field>[,…]` over `entrypoints | buildTools | programInfo | traces`, and read everything you
-   widen. _Gate:_ an unknown field is refused with a failure document on stderr and exit `1` —
+   widen. `traces` restores TypeScript's own module-resolution trace strings for the analyzed
+   package — they are unbounded package-controlled text, so bound what you ingest. _Gate:_ an
+   unknown field is refused with a failure document on stderr and exit `1` —
    nothing widens silently.
 5. **`--pack` is a write.** It runs `npm pack` in the target directory, reads the tarball, and deletes
    it: it creates and removes a file in a directory the user owns. _Gate:_ none — this is declared

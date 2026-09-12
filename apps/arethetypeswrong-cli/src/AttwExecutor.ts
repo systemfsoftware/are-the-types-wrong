@@ -7,6 +7,7 @@ import {
   type ResolutionKind,
 } from '@systemfsoftware/arethetypeswrong'
 import { Effect, Layer, Schema as S } from 'effect'
+import * as Cause from 'effect/Cause'
 import { ChildProcessSpawner } from 'effect/unstable/process/ChildProcessSpawner'
 
 import { decideEnvelope } from './Envelope.js'
@@ -95,13 +96,25 @@ const tarballUrlFrom = (tarballUrl: string): Effect.Effect<string, AttwFailure> 
 const boundPayload = (kind: PayloadKind, byteLength: number): Effect.Effect<void, AttwFailure> =>
   Effect.mapError(Effect.fromResult(decodePayloadSize(kind, byteLength)), (found) => new RegistryBadResponse(found))
 
+const fetchRegistryResponse = (url: string): Effect.Effect<Response, AttwFailure> =>
+  Effect.tryPromise({
+    try: (signal) => fetch(url, { signal }),
+    catch: () => classifyRegistryFailure({ kind: 'no-response' }),
+  }).pipe(
+    Effect.timeout('60 seconds'),
+    Effect.catchIf(
+      (error): error is Cause.TimeoutError => Cause.isTimeoutError(error),
+      () => Effect.fail(classifyRegistryFailure({ kind: 'no-response' })),
+    ),
+  )
+
 const readBoundedBody = (response: Response, kind: PayloadKind): Effect.Effect<Uint8Array, AttwFailure> =>
   Effect.gen(function*() {
     const declared = Number(response.headers.get('content-length') ?? 'NaN')
     if (Number.isFinite(declared)) yield* boundPayload(kind, declared)
     const bytes = yield* Effect.tryPromise({
       try: async () => new Uint8Array(await response.arrayBuffer()),
-      catch: () => classifyRegistryFailure({ kind: 'unexpected-shape' }),
+      catch: () => classifyRegistryFailure({ kind: 'no-response' }),
     })
     yield* boundPayload(kind, bytes.byteLength)
     return bytes
@@ -121,8 +134,10 @@ const acquireTarball = (
       const packRunner = yield* PackRunner
       const packed = yield* packRunner.pack(target).pipe(Effect.mapError(() => packFailed()))
       const tarballPath = fs.join(target, packed.tarballPath)
-      const bytes = yield* fs.readBytes(tarballPath).pipe(Effect.mapError(() => packFailed()))
-      yield* fs.deleteFile(tarballPath)
+      const bytes = yield* fs.readBytes(tarballPath).pipe(
+        Effect.mapError(() => packFailed()),
+        Effect.ensuring(fs.deleteFile(tarballPath).pipe(Effect.orElseSucceed(() => undefined))),
+      )
       return {
         bytes,
         ref: { packageName: target, packageVersion: 'local', tarballUrl: `file://${tarballPath}` },
@@ -140,10 +155,7 @@ const acquireTarball = (
     }
     const spec = yield* Effect.fromResult(decodePackageSpec(target))
     const registryBase = yield* registryBaseFrom(request.registry)
-    const manifestResponse = yield* Effect.tryPromise({
-      try: async () => await fetch(buildManifestUrl(registryBase, spec)),
-      catch: () => classifyRegistryFailure({ kind: 'no-response' }),
-    })
+    const manifestResponse = yield* fetchRegistryResponse(buildManifestUrl(registryBase, spec))
     if (!manifestResponse.ok) {
       return yield* Effect.fail(
         classifyRegistryFailure({ kind: 'http-status', status: manifestResponse.status }),

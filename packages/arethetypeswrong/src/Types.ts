@@ -149,7 +149,7 @@ export interface InternalResolutionErrorProblem extends FileTextRangeProblem {
   kind: 'InternalResolutionError'
   resolutionOption: ResolutionOption
   moduleSpecifier: string
-  resolutionMode: ts.ResolutionMode
+  resolutionMode?: ts.ResolutionMode
   trace: string[]
 }
 
