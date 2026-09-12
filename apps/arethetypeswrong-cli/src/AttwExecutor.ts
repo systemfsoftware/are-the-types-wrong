@@ -9,11 +9,11 @@ import {
 import { Effect, Layer, Schema as S } from 'effect'
 import { ChildProcessSpawner } from 'effect/unstable/process/ChildProcessSpawner'
 
+import { decideEnvelope } from './Envelope.js'
 import { classifyRegistryFailure } from './Failure.js'
 import { AnalysisFailed, type AttwFailure, ConfigInvalid, PackFailed, RegistryBadResponse } from './Failure.schema.js'
 import { CliFilesystem as Filesystem } from './FilesystemAdapter.js'
-import { computeExitCode } from './GetExitCode.js'
-import { ComputeExitCodeCommand } from './GetExitCode.schema.js'
+import { defaultEnvelopeMask } from './Mask.js'
 import { buildManifestUrl, decodePackageSpec, decodeTargetShape, targetNotPackable } from './PackageSpec.js'
 import { PackRunner } from './PackRunnerAdapter.js'
 import { applyProfile, type CliProfileName } from './Profiles.js'
@@ -202,13 +202,6 @@ export const runAttw = (
     )
     const result = yield* checkEffect
     const prepared = prepareAnalysis(request, result)
-    const exitDecision = computeExitCode(
-      new ComputeExitCodeCommand({
-        result: prepared.result,
-        ignoreRules: [...prepared.ignoreRules],
-        ignoreResolutions: [...prepared.ignoreResolutions],
-      }),
-    )
     const mode = decideRenderMode(
       new DecideRenderModeCommand({
         isTty: terminal.isTty,
@@ -217,19 +210,24 @@ export const runAttw = (
         quiet: request.quiet ?? false,
       }),
     ).mode
+    const envelope = decideEnvelope({
+      result: prepared.result,
+      ignoreRules: prepared.ignoreRules,
+      ignoreResolutions: prepared.ignoreResolutions,
+      mask: defaultEnvelopeMask,
+    })
     const output = renderAnalysisForMode(prepared.result, mode, {
       color: request.color ?? true,
       summary: request.summary ?? true,
       ignoreRules: prepared.ignoreRules,
       useEmoji: request.emoji ?? true,
-    })
+    }, envelope.document)
     if (output !== '') yield* terminal.stdout.write(output)
-    return exitDecision.exitCode
+    return envelope.exitCode
   })
 
 export const _attwCliExecutorUsed = {
   applyProfile,
-  computeExitCode,
   renderAnalysisForMode,
   prepareAnalysis,
   CheckPackage,

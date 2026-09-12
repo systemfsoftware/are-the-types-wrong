@@ -21,48 +21,57 @@ const VERDACCIO_VERSION = '6.10.3'
 const REGISTRY_URL = 'http://127.0.0.1:4873'
 const WORKDIR = '/work'
 const FIXTURES_DIR = `${WORKDIR}/fixtures`
+const EVAL_FIXTURES_DIR = `${WORKDIR}/eval-fixtures`
 const CLOSURE_TAR = '/tmp/attw-closure.tar'
 const RECIPE_FIXTURES = [recipes.UntypedResolution, recipes.FalseCJS, recipes.MultiEntrypoint]
 
-interface Analysis {
-  readonly analysis: {
-    readonly entrypoints: object | undefined
-    readonly packageName: string
+interface DecodedEnvelope {
+  readonly status: 'ok' | 'untyped'
+  readonly packageName: string
+  readonly packageVersion: string
+  readonly problems: readonly unknown[]
+  readonly keys: readonly string[]
+}
+
+const analyzeJson = (stdout: string): DecodedEnvelope => {
+  const parsed: unknown = JSON.parse(stdout)
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`attw printed no envelope object: ${stdout}`)
   }
-  readonly problems: unknown
+  const status = 'status' in parsed ? parsed.status : undefined
+  const packageName = 'packageName' in parsed ? parsed.packageName : undefined
+  const packageVersion = 'packageVersion' in parsed ? parsed.packageVersion : undefined
+  const problems = 'problems' in parsed ? parsed.problems : undefined
+  if (status !== 'ok' && status !== 'untyped') {
+    throw new Error(`attw printed an envelope without a status discriminant: ${stdout}`)
+  }
+  if (typeof packageName !== 'string' || typeof packageVersion !== 'string') {
+    throw new Error(`attw printed an envelope without a package name and version: ${stdout}`)
+  }
+  if (problems !== undefined && !Array.isArray(problems)) {
+    throw new Error(`attw printed problems that are not an array: ${stdout}`)
+  }
+  return { status, packageName, packageVersion, problems: problems ?? [], keys: Object.keys(parsed) }
+}
+
+const failureDocument = (stderr: string): { readonly kind: string; readonly recovery: string } => {
+  const parsed: unknown = JSON.parse(stderr)
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`attw printed no failure document: ${stderr}`)
+  }
+  const status = 'status' in parsed ? parsed.status : undefined
+  const kind = 'kind' in parsed ? parsed.kind : undefined
+  const recovery = 'recovery' in parsed ? parsed.recovery : undefined
+  if (status !== 'error' || typeof kind !== 'string' || typeof recovery !== 'string') {
+    throw new Error(`attw printed no failure document: ${stderr}`)
+  }
+  return { kind, recovery }
 }
 
 let container: StartedTestContainer
 let scratch: string
 let cliBin: string
 let npmBin: string
-
-const analyzeJson = (stdout: string): Analysis => {
-  const parsed: unknown = JSON.parse(stdout)
-  if (typeof parsed !== 'object' || parsed === null || !('analysis' in parsed)) {
-    throw new Error(`attw printed no analysis object: ${stdout}`)
-  }
-  const { analysis } = parsed
-  if (
-    typeof analysis !== 'object' || analysis === null || !('packageName' in analysis) ||
-    typeof analysis.packageName !== 'string'
-  ) {
-    throw new Error(`attw printed an analysis without a package name: ${stdout}`)
-  }
-  const entrypoints = 'entrypoints' in analysis ? analysis.entrypoints : undefined
-  if (entrypoints !== undefined && (typeof entrypoints !== 'object' || entrypoints === null)) {
-    throw new Error(`attw printed entrypoints that are not an object: ${stdout}`)
-  }
-  return {
-    analysis: { entrypoints, packageName: analysis.packageName },
-    problems: 'problems' in parsed ? parsed.problems : undefined,
-  }
-}
-const entrypointsIn = (stdout: string): readonly string[] => {
-  const { entrypoints } = analyzeJson(stdout).analysis
-  if (entrypoints === undefined) throw new Error(`attw printed no entrypoints: ${stdout}`)
-  return Object.keys(entrypoints)
-}
 
 const cliManifest = async (url: URL): Promise<{ readonly command: string; readonly version: string }> => {
   const manifest: unknown = JSON.parse(await readFile(url, 'utf8'))
@@ -207,6 +216,7 @@ beforeAll(async () => {
     ])
     .withCopyDirectoriesToContainer([
       { source: fixturesDir, target: FIXTURES_DIR },
+      { source: join(PACKAGE_DIR, 'evals', 'fixtures'), target: EVAL_FIXTURES_DIR },
       { source: verdaccioDir, target: '/opt/verdaccio' },
       { source: registryFixtureDir, target: `${WORKDIR}/registry-fixture` },
     ])
@@ -328,9 +338,39 @@ describe('attw, built by nix, run in a container', () => {
     expect(result.stdout.endsWith('\n')).toBe(true)
     expect(result.stdout.trimEnd().includes('\n')).toBe(false)
     expect(result.stdout).not.toContain(String.fromCharCode(27))
-    const parsed: unknown = JSON.parse(result.stdout)
-    expect(typeof parsed).toBe('object')
-    expect(parsed).not.toBeNull()
+    expect(analyzeJson(result.stdout).status).toBe('ok')
+  })
+
+  test('keeps the default envelope field-tight', async () => {
+    const typed = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`], FIXTURES_DIR)
+    const untyped = await runCli([`${EVAL_FIXTURES_DIR}/untyped.tgz`], EVAL_FIXTURES_DIR)
+
+    expect(typed.exitCode).toBe(1)
+    const envelope = analyzeJson(typed.stdout)
+    expect([...envelope.keys].sort()).toEqual([
+      'packageName',
+      'packageVersion',
+      'problemCounts',
+      'problems',
+      'status',
+      'types',
+    ])
+    expect(envelope.problems.length).toBeGreaterThan(0)
+    expect(typed.stdout).not.toContain('"trace"')
+
+    expect(untyped.exitCode).toBe(0)
+    const untypedEnvelope = analyzeJson(untyped.stdout)
+    expect(untypedEnvelope.status).toBe('untyped')
+    expect(untypedEnvelope.keys).not.toContain('problems')
+  })
+
+  test('agrees the envelope with the exit code under a profile that silences every problem', async () => {
+    const result = await runCli(['--profile', 'node16', `${EVAL_FIXTURES_DIR}/typed-node10.tgz`], EVAL_FIXTURES_DIR)
+
+    expect(result.exitCode).toBe(0)
+    const envelope = analyzeJson(result.stdout)
+    expect(envelope.status).toBe('ok')
+    expect(envelope.problems).toEqual([])
   })
 
   test('emits json naming the analyzed package and its problems', async () => {
@@ -338,27 +378,27 @@ describe('attw, built by nix, run in a container', () => {
 
     expect(result.exitCode).toBe(1)
     const parsed = analyzeJson(result.stdout)
-    expect(parsed.analysis.packageName).toBe('untyped-resolution')
-    expect(parsed.problems).toBeDefined()
+    expect(parsed.packageName).toBe('untyped-resolution')
+    expect(parsed.problems.length).toBeGreaterThan(0)
   })
 
   test('restricts the analysis to the selected entrypoints', async () => {
-    const full = await runCli([`${FIXTURES_DIR}/multi-entrypoint.tgz`, '-f', 'json'], FIXTURES_DIR)
+    const full = await runCli([`${FIXTURES_DIR}/multi-entrypoint.tgz`, '-f', 'table'], FIXTURES_DIR)
     const restricted = await runCli(
-      [`${FIXTURES_DIR}/multi-entrypoint.tgz`, '--entrypoints', '.', '-f', 'json'],
+      [`${FIXTURES_DIR}/multi-entrypoint.tgz`, '--entrypoints', '.', '-f', 'table'],
       FIXTURES_DIR,
     )
 
-    expect(entrypointsIn(restricted.stdout).length).toBeLessThan(entrypointsIn(full.stdout).length)
+    expect(humanTable(restricted.stdout).rows.length).toBeLessThan(humanTable(full.stdout).rows.length)
   })
 
   test('drops excluded entrypoints from the analysis', async () => {
     const result = await runCli(
-      [`${FIXTURES_DIR}/multi-entrypoint.tgz`, '--exclude-entrypoints', 'macros', '-f', 'json'],
+      [`${FIXTURES_DIR}/multi-entrypoint.tgz`, '--exclude-entrypoints', 'macros', '-f', 'table'],
       FIXTURES_DIR,
     )
 
-    expect(entrypointsIn(result.stdout).some((name) => name.includes('macros'))).toBe(false)
+    expect(humanTable(result.stdout).rows.some((row) => (row[0] ?? '').includes('macros'))).toBe(false)
   })
 
   test('analyzes a package acquired from the verdaccio registry', async () => {
@@ -367,10 +407,8 @@ describe('attw, built by nix, run in a container', () => {
       `${REGISTRY_FIXTURE_NAME}@${REGISTRY_FIXTURE_VERSION}`,
       '--registry',
       REGISTRY_URL,
-      '-f',
-      'json',
     ])
-    expect(analyzeJson(result.stdout).analysis.packageName).toBe(REGISTRY_FIXTURE_NAME)
+    expect(analyzeJson(result.stdout).packageName).toBe(REGISTRY_FIXTURE_NAME)
   })
 
   test('packs a directory and analyzes the packed package', async () => {
@@ -382,10 +420,10 @@ describe('attw, built by nix, run in a container', () => {
     )
     requireStep('prepare pack directory', prepared)
 
-    const result = await runCli(['--pack', '.', '-f', 'json'], packDir)
+    const result = await runCli(['--pack', '.'], packDir)
 
     expect(result.exitCode).toBe(0)
-    expect(analyzeJson(result.stdout).analysis.packageName).toBe('attw-pack-test')
+    expect(analyzeJson(result.stdout).packageName).toBe('attw-pack-test')
   })
 
   test('applies a .attw.json waiver found in the working directory', async () => {
@@ -400,5 +438,32 @@ describe('attw, built by nix, run in a container', () => {
     expectHumanTable(before.stdout, { header: TABLE_HEADER, labels: ['.'] }, /^✘+$/)
     expect(after.exitCode).toBe(0)
     expectHumanTable(after.stdout, { header: TABLE_HEADER, labels: ['.'] }, okCells)
+  })
+
+  test('fails an unreadable tarball with a typed document and an empty stdout', async () => {
+    await runShell(`printf '%s' 'not a tarball' > ${FIXTURES_DIR}/corrupt.tgz`)
+    const result = await runCli([`${FIXTURES_DIR}/corrupt.tgz`], FIXTURES_DIR)
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toBe('')
+    const failure = failureDocument(result.stderr)
+    expect(failure.kind).toBe('AnalysisFailed')
+    expect(failure.recovery.length).toBeGreaterThan(0)
+  })
+
+  test('reports an unreachable registry with a typed document and an empty stdout', async () => {
+    const result = await runCli(['--from-npm', 'attw-never-resolves', '--registry', 'http://127.0.0.1:9'])
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toBe('')
+    expect(failureDocument(result.stderr).kind).toBe('RegistryUnreachable')
+  })
+
+  test('refuses a package spec welded to URL syntax before any registry call', async () => {
+    const result = await runCli(['--from-npm', 'pkg?fields=name', '--registry', 'http://127.0.0.1:9'])
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toBe('')
+    expect(failureDocument(result.stderr).kind).toBe('InvalidPackageSpec')
   })
 })

@@ -1,4 +1,4 @@
-import type { ProblemKind, ResolutionKind } from '@systemfsoftware/arethetypeswrong'
+import type { CheckResult, Problem, ProblemKind, ResolutionKind } from '@systemfsoftware/arethetypeswrong'
 
 export const CliProblemFlags = [
   'no-resolution',
@@ -77,3 +77,16 @@ export const _problemKinds: readonly ProblemKind[] = [
   'UnexpectedModuleSyntax',
   'InternalResolutionError',
 ]
+
+export const isVisibleProblem = (
+  problem: Problem,
+  ignoredRules: readonly string[],
+  ignoredResolutions: readonly string[],
+): boolean => {
+  const ruleIgnored = ignoredRules.includes(problemFlagForKind(problem.kind))
+  const resolutionIgnored = 'resolutionKind' in problem && ignoredResolutions.includes(problem.resolutionKind)
+  return !ruleIgnored && !resolutionIgnored
+}
+
+export const isUntypedResult = (result: CheckResult): result is Extract<CheckResult, { types: false }> =>
+  'types' in result && result.types === false
