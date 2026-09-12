@@ -1,6 +1,13 @@
+import { Match } from 'effect'
 import ts from 'typescript'
+
+import {
+  detectFallbackCondition,
+  DetectFallbackConditionCommand,
+  ResolutionTracesCollected,
+  ResolutionTracesUnavailable,
+} from '../../detect-fallback-condition.workflow.js'
 import type { Problem } from '../../Types.js'
-import { resolvedThroughFallback } from '../../Utils.js'
 import { defineCheck } from '../DefineCheck.js'
 
 /** @internal */
@@ -44,13 +51,31 @@ export default defineCheck({
       })
     }
 
-    if (entrypoint.resolution !== undefined && resolvedThroughFallback(entrypoint.resolution.trace) === true) {
-      problems.push({
-        kind: 'FallbackCondition',
-        entrypoint: subpath,
-        resolutionKind,
-      })
-    }
+    Match.value(
+      detectFallbackCondition(
+        new DetectFallbackConditionCommand({
+          observation: Match.value(entrypoint.resolution).pipe(
+            Match.when(undefined, () => new ResolutionTracesUnavailable()),
+            Match.orElse((resolution) => new ResolutionTracesCollected({ lines: [...resolution.trace] })),
+          ),
+        }),
+      ),
+    ).pipe(
+      Match.tag('Success', (result) =>
+        Match.value(result.success).pipe(
+          Match.tag('FallbackConditionDetected', () => {
+            problems.push({
+              kind: 'FallbackCondition',
+              entrypoint: subpath,
+              resolutionKind,
+            })
+          }),
+          Match.tag('FallbackConditionAbsent', () => undefined),
+          Match.exhaustive,
+        )),
+      Match.tag('Failure', () => undefined),
+      Match.exhaustive,
+    )
 
     return problems
   },

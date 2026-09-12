@@ -1,4 +1,11 @@
-import { resolvedThroughFallback } from './Fallback.js'
+import { Match } from 'effect'
+
+import {
+  detectFallbackCondition,
+  DetectFallbackConditionCommand,
+  ResolutionTracesCollected,
+  ResolutionTracesUnavailable,
+} from './detect-fallback-condition.workflow.js'
 import { ESNextModuleKind } from './ModuleKind.js'
 import { type EntrypointResolutionAnalysis, type ModuleKind, type Problem } from './Problem.schema.js'
 
@@ -53,13 +60,31 @@ export const detectEntrypointResolutions = (
     }
   }
 
-  if (entrypoint.resolution !== undefined && resolvedThroughFallback(entrypoint.resolution.trace)) {
-    problems.push({
-      kind: 'FallbackCondition',
-      entrypoint: subpath,
-      resolutionKind: entrypoint.resolutionKind,
-    })
-  }
+  Match.value(
+    detectFallbackCondition(
+      new DetectFallbackConditionCommand({
+        observation: Match.value(entrypoint.resolution).pipe(
+          Match.when(undefined, () => new ResolutionTracesUnavailable()),
+          Match.orElse((resolution) => new ResolutionTracesCollected({ lines: [...resolution.trace] })),
+        ),
+      }),
+    ),
+  ).pipe(
+    Match.tag('Success', (result) =>
+      Match.value(result.success).pipe(
+        Match.tag('FallbackConditionDetected', () => {
+          problems.push({
+            kind: 'FallbackCondition',
+            entrypoint: subpath,
+            resolutionKind: entrypoint.resolutionKind,
+          })
+        }),
+        Match.tag('FallbackConditionAbsent', () => undefined),
+        Match.exhaustive,
+      )),
+    Match.tag('Failure', () => undefined),
+    Match.exhaustive,
+  )
 
   return problems
 }

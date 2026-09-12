@@ -22,7 +22,17 @@ export { formatEntrypointString, getSubpaths, hasExportTarget } from './Entrypoi
 export { detectEntrypointResolutions } from './EntrypointResolutions.js'
 export type { EntrypointResolutionsInput } from './EntrypointResolutions.js'
 
-export { resolvedThroughFallback } from './Fallback.js'
+export {
+  detectFallbackCondition,
+  DetectFallbackConditionCommand,
+  FallbackConditionAbsent,
+  type FallbackConditionDecision,
+  FallbackConditionDetected,
+  type FallbackTraceObservation,
+  ResolutionTracesCollected,
+  ResolutionTracesUnavailable,
+  ResolutionTraceUnavailable,
+} from './detect-fallback-condition.workflow.js'
 
 export { CommonJSModuleKind, ESNextModuleKind } from './ModuleKind.js'
 

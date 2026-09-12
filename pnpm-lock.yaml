@@ -313,6 +313,9 @@ importers:
       '@systemfsoftware/arethetypeswrong-recipes':
         specifier: workspace:^
         version: link:../arethetypeswrong-recipes
+      '@systemfsoftware/effect-cell-types':
+        specifier: ^6.0.1
+        version: 6.0.1(effect@4.0.0-rc.112)
       '@systemfsoftware/effect-gherkin-spec':
         specifier: 'catalog:'
         version: 4.0.1(@effect/vitest@4.0.0-rc.112(effect@4.0.0-rc.112)(vitest@4.1.11))(effect@4.0.0-rc.112)(vitest@4.1.11)

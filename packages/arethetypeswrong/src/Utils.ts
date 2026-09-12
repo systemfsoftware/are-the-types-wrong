@@ -46,38 +46,6 @@ export function isNonEmptyString(value: string | null | undefined): value is str
   return value !== null && value !== undefined && value !== ''
 }
 
-export function resolvedThroughFallback(traces: string[]) {
-  let i = 0
-  while (i < traces.length) {
-    i = traces.indexOf('Entering conditional exports.', i)
-    if (i === -1) {
-      return false
-    }
-    if (conditionalExportsResolvedThroughFallback()) {
-      return true
-    }
-  }
-
-  function conditionalExportsResolvedThroughFallback(): boolean {
-    i++
-    let seenFailure = false
-    for (; i < traces.length; i++) {
-      if (traces[i].startsWith("Failed to resolve under condition '")) {
-        seenFailure = true
-      } else if (seenFailure && traces[i].startsWith("Resolved under condition '")) {
-        return true
-      } else if (traces[i] === 'Entering conditional exports.') {
-        if (conditionalExportsResolvedThroughFallback()) {
-          return true
-        }
-      } else if (traces[i] === 'Exiting conditional exports.') {
-        return false
-      }
-    }
-    return false
-  }
-}
-
 export function visitResolutions(
   entrypoints: Record<string, EntrypointInfo>,
   visitor: (analysis: EntrypointResolutionAnalysis, info: EntrypointInfo) => unknown,
