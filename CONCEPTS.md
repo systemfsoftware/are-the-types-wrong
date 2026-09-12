@@ -39,3 +39,11 @@ A query against the package registry asking whether a given package version is p
 ### Scoped name
 
 A package name carrying a scope, written `@scope/name`. A scoped name is a single path segment in a registry URL, so the scope separator must be percent-encoded rather than left literal.
+
+## CLI output contract
+
+### Machine envelope
+
+The single JSON document `attw` writes to stdout on a non-TTY stream: a CLI-owned Schema with an explicit `status` discriminant (`ok` | `untyped`), default-tight fields, and a visible-problem set that agrees with the process exit code by construction. Failures never ride the envelope; they are typed stderr documents.
+
+_Avoid:_ payload, output blob — the envelope is the contract surface `attw schema` describes.
