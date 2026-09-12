@@ -250,7 +250,7 @@ importers:
   apps/arethetypeswrong-cli-e2e:
     devDependencies:
       '@systemfsoftware/arethetypeswrong-recipes':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../packages/arethetypeswrong-recipes
       '@systemfsoftware/npm-package':
         specifier: 'catalog:'
@@ -261,6 +261,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
+      ajv:
+        specifier: ^8.17.1
+        version: 8.20.0
       oxlint:
         specifier: 'catalog:'
         version: 1.82.0(oxlint-tsgolint@7.0.2001)

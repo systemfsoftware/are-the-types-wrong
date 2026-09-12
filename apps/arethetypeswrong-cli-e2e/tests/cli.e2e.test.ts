@@ -1,5 +1,6 @@
 import { recipes } from '@systemfsoftware/arethetypeswrong-recipes'
 import { packPackage } from '@systemfsoftware/npm-package'
+import { Ajv2020 } from 'ajv/dist/2020.js'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -22,7 +23,7 @@ const REGISTRY_URL = 'http://127.0.0.1:4873'
 const WORKDIR = '/work'
 const FIXTURES_DIR = `${WORKDIR}/fixtures`
 const EVAL_FIXTURES_DIR = `${WORKDIR}/eval-fixtures`
-const CLOSURE_TAR = '/tmp/attw-closure.tar'
+const CLOSURE_TAR = `${WORKDIR}/closure.tar`
 const RECIPE_FIXTURES = [recipes.UntypedResolution, recipes.FalseCJS, recipes.MultiEntrypoint]
 
 interface DecodedEnvelope {
@@ -51,6 +52,9 @@ const analyzeJson = (stdout: string): DecodedEnvelope => {
   if (problems !== undefined && !Array.isArray(problems)) {
     throw new Error(`attw printed problems that are not an array: ${stdout}`)
   }
+  if (validateEnvelope !== undefined && !validateEnvelope(parsed)) {
+    throw new Error(`attw printed an envelope its own schema refuses: ${stdout}`)
+  }
   return { status, packageName, packageVersion, problems: problems ?? [], keys: Object.keys(parsed) }
 }
 
@@ -68,13 +72,12 @@ const errorDocument = (text: string): { readonly kind: string; readonly recovery
   return { kind, recovery }
 }
 
-const failureDocument = errorDocument
-
-const usageErrorDocument = (
-  stderr: string,
-): { readonly kind: string; readonly recovery: string } => {
-  const [line = ''] = stderr.split('\n')
-  return errorDocument(line)
+const usageErrorDocument = (stderr: string): { readonly kind: string; readonly recovery: string } => {
+  const [document = '', ...usageText] = stderr.split('\n')
+  if (usageText.every((line) => line.trim() === '')) {
+    throw new Error(`attw printed a usage failure without the usage text that follows it: ${stderr}`)
+  }
+  return errorDocument(document)
 }
 
 const schemaDocument = (
@@ -118,6 +121,17 @@ const cliManifest = async (url: URL): Promise<{ readonly command: string; readon
 const ANSI_SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
 const stripAnsi = (text: string): string => text.replace(ANSI_SGR, '')
 
+const isJson = (text: string): boolean => {
+  try {
+    JSON.parse(text)
+    return true
+  } catch {
+    return false
+  }
+}
+
+let validateEnvelope: ((document: unknown) => boolean) | undefined
+
 const RESOLUTION_COLUMNS = ['node10', 'node16-cjs', 'node16-esm', 'bundler'] as const
 
 const TABLE_HEADER = ['Entrypoint', ...RESOLUTION_COLUMNS]
@@ -147,7 +161,7 @@ const expectHumanTable = (
   expected: { readonly header: readonly string[]; readonly labels: readonly string[] },
   cell: RegExp,
 ): void => {
-  expect(() => JSON.parse(stdout)).toThrow()
+  expect(isJson(stdout)).toBe(false)
   const table = humanTable(stdout)
   expect(table.header).toEqual([...expected.header])
   expect(table.rows.map((row) => row[0])).toEqual([...expected.labels])
@@ -283,17 +297,24 @@ beforeAll(async () => {
     ]),
   )
   requireStep(
-    'verdaccio /-/ping',
-    await container.exec([
-      `${nodeStore}/bin/node`,
-      '-e',
-      'const d=Date.now()+5000; (async function tick(){try{if((await fetch("http://127.0.0.1:4873/-/ping")).ok)process.exit(0)}catch{} if(Date.now()>d)process.exit(1); setImmediate(tick)})()',
-    ]),
-  )
-  requireStep(
     'write npmrc token',
     await container.exec(['sh', '-c', "printf '%s\\n' '//127.0.0.1:4873/:_authToken=e2e' > /root/.npmrc"]),
   )
+  requireStep(
+    'verdaccio readiness',
+    await container.exec([
+      `${nodeStore}/bin/node`,
+      '-e',
+      'let attempts = 0; (async function tick(){attempts++; try{if((await fetch("http://127.0.0.1:4873/-/ping")).ok)process.exit(0)}catch{} if(attempts>=30)process.exit(1); setTimeout(tick, 200)})()',
+    ]),
+  )
+
+  const schema = schemaDocument((await runCli(['schema'])).stdout)
+  if (typeof schema.envelope !== 'object' || schema.envelope === null) {
+    throw new Error('attw schema printed no envelope document')
+  }
+  validateEnvelope = new Ajv2020({ strict: false }).compile(schema.envelope)
+
   requireStep(
     'npm publish fixture to verdaccio',
     await container.exec([
@@ -457,7 +478,7 @@ describe('attw, built by nix, run in a container', () => {
   })
 
   test('packs a directory and analyzes the packed package', async () => {
-    const packDir = '/tmp/attw-pack-test'
+    const packDir = `${WORKDIR}/pack-test`
     const prepared = await runShell(
       `mkdir -p ${packDir} && cd ${packDir} && ` +
         `printf '%s' '{"name":"attw-pack-test","version":"1.0.0","type":"module","main":"index.js"}' > package.json && ` +
@@ -491,7 +512,7 @@ describe('attw, built by nix, run in a container', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe('')
-    const failure = failureDocument(result.stderr)
+    const failure = errorDocument(result.stderr)
     expect(failure.kind).toBe('AnalysisFailed')
     expect(failure.recovery.length).toBeGreaterThan(0)
   })
@@ -501,7 +522,7 @@ describe('attw, built by nix, run in a container', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe('')
-    expect(failureDocument(result.stderr).kind).toBe('RegistryUnreachable')
+    expect(errorDocument(result.stderr).kind).toBe('RegistryUnreachable')
   })
 
   test('reports a missing registry version as RegistryNotFound with a typed document', async () => {
@@ -514,7 +535,7 @@ describe('attw, built by nix, run in a container', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe('')
-    expect(failureDocument(result.stderr).kind).toBe('RegistryNotFound')
+    expect(errorDocument(result.stderr).kind).toBe('RegistryNotFound')
   })
 
   test('ships the agent artifacts in the published package', async () => {
@@ -531,7 +552,7 @@ describe('attw, built by nix, run in a container', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe('')
-    expect(failureDocument(result.stderr).kind).toBe('InvalidPackageSpec')
+    expect(errorDocument(result.stderr).kind).toBe('InvalidPackageSpec')
   })
 
   test('describes its input surface and envelope as JSON Schema documents', async () => {

@@ -17,10 +17,11 @@
     "typecheck": "tsc --noEmit --incremental"
   },
   "devDependencies": {
-    "@systemfsoftware/arethetypeswrong-recipes": "workspace:*",
+    "@systemfsoftware/arethetypeswrong-recipes": "workspace:^",
     "@systemfsoftware/npm-package": "catalog:",
     "@systemfsoftware/tsconfig": "catalog:",
     "@types/node": "catalog:",
+    "ajv": "^8.17.1",
     "oxlint": "catalog:",
     "testcontainers": "catalog:",
     "typescript": "catalog:",
