@@ -33,33 +33,37 @@ const recipeCount = Object.entries(recipes).length
 const generatedPackageTree = (variant: number, placement: (typeof declarationPlacements)[number]['placement']) => {
   const directories = ['dist', 'build', 'lib'] as const
   const moduleNames = ['index', 'main', 'entry'] as const
-  const directory = directories[variant % directories.length]!
-  const moduleName = moduleNames[(variant + 1) % moduleNames.length]!
+  const directory = directories[variant % directories.length]
+  const moduleName = moduleNames[(variant + 1) % moduleNames.length]
   const packageName = `generated-tree-${variant}`
   const siblingName = `generated-sibling-${variant}`
   const declarationPath = `${directory}/${moduleName}.d.ts`
   const modulePath = `${directory}/${moduleName}.js`
   const declarationsInside = placement === 'inside its own directory'
-  const manifestFor = (name: string, withTypes: boolean) =>
-    JSON.stringify({
+  const manifestFor = (name: string, withTypes: boolean) => {
+    const manifest: Record<string, string> = {
       name,
       version: '1.0.0',
       main: `./${modulePath}`,
-      ...(withTypes ? { types: `./${declarationPath}` } : {}),
-    })
+    }
+    if (withTypes) {
+      manifest['types'] = `./${declarationPath}`
+    }
+    return JSON.stringify(manifest)
+  }
+
+  const subjectFiles: Record<string, string> = {
+    'package.json': manifestFor(packageName, declarationsInside),
+    [modulePath]: 'export const value = 1;\n',
+  }
+  if (declarationsInside) {
+    subjectFiles[declarationPath] = 'export declare const value: number;\n'
+  }
 
   return {
     packageName,
     declarationPath,
-    subject: createPackage(
-      {
-        'package.json': manifestFor(packageName, declarationsInside),
-        [modulePath]: 'export const value = 1;\n',
-        ...(declarationsInside ? { [declarationPath]: 'export declare const value: number;\n' } : {}),
-      },
-      packageName,
-      '1.0.0',
-    ),
+    subject: createPackage(subjectFiles, packageName, '1.0.0'),
     sibling: createPackage(
       {
         'package.json': manifestFor(siblingName, !declarationsInside),
@@ -80,7 +84,12 @@ Feature('The problems a synthetic package was authored to produce').body(({ scen
         Given(`the ${row.recipe} synthetic package`)('pkg', () => Effect.sync(() => recipes[row.recipe]())),
         When('the package is analysed')('kinds', ({ pkg }) =>
           checkPackage(pkg).pipe(
-            Effect.map((analysed) => ('problems' in analysed ? analysed.problems.map((problem) => problem.kind) : [])),
+            Effect.map((analysed) => {
+              if ('problems' in analysed) {
+                return analysed.problems.map((problem) => problem.kind)
+              }
+              return []
+            }),
           )),
         Then(`the analysis reports the ${row.kind} problem`)(({ kinds }) => {
           expect(kinds).toContain(row.kind)
@@ -96,9 +105,14 @@ Feature('The problems a synthetic package was authored to produce').body(({ scen
         Given(`a generated package tree whose declarations live ${row.placement}, with a sibling package beside it`)(
           'generated',
           () =>
-            Effect.sync(() =>
-              generatedPackageTree(row.placement === 'inside its own directory' ? 0 : 1, row.placement)
-            ),
+            Effect.sync(() => {
+              const variant = Match.value(row.placement).pipe(
+                Match.when('inside its own directory', () => 0),
+                Match.when('in a sibling directory beside it', () => 1),
+                Match.exhaustive,
+              )
+              return generatedPackageTree(variant, row.placement)
+            }),
         ),
         When('the generated package is analysed')('analysed', ({ generated }) => checkPackage(generated.subject)),
         Then(`the analysed package is reported as ${row.verdict}`)(({ analysed, generated }) => {

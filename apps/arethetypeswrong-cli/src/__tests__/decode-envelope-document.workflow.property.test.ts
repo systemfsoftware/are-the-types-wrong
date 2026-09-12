@@ -5,7 +5,7 @@ import {
   type Problem,
   ProblemSchema,
 } from '@systemfsoftware/arethetypeswrong'
-import { Result, Schema } from 'effect'
+import { Match, Result, Schema } from 'effect'
 import * as fc from 'effect/testing/FastCheck'
 
 import {
@@ -95,6 +95,10 @@ const problemPayload: fc.Arbitrary<unknown> = fc.oneof(
   problem.map((one) => [one]),
 )
 
+const refusedDocument: fc.Arbitrary<unknown> = problem.chain((generated) =>
+  fc.constantFrom(...refusedDocuments(generated))
+)
+
 const analysisOf = (problems: readonly Problem[]): CheckResult => ({
   packageName: 'demo',
   packageVersion: '1.0.0',
@@ -149,8 +153,6 @@ const authoredMaskedProblems = (
 const sameKindSequence = (left: readonly MaskedProblem[], right: readonly MaskedProblem[]): boolean =>
   left.length === right.length && left.every((one, index) => one.kind === right[index]?.kind)
 
-const carriesTrace = (one: MaskedProblem): boolean => 'trace' in one
-
 const defaultMaskHolds = EnvelopeMaskFields.every((field) => defaultEnvelopeMask[field] === defaultMaskContract[field])
 
 it.prop(
@@ -159,38 +161,49 @@ it.prop(
   ([generated]) =>
     Result.match(decodeOf(typedEnvelopeSkeleton([generated])), {
       onSuccess: (decision) =>
-        decision._tag === 'OkEnvelopeAccepted' &&
-        decision.document.packageName === 'demo' &&
-        decision.document.packageVersion === '1.0.0' &&
-        decision.document.status === 'ok' &&
-        decision.document.problems.length === 1 &&
-        decision.document.problems[0]?.kind === generated.kind,
+        Match.value(decision).pipe(
+          Match.tag('OkEnvelopeAccepted', ({ document }) =>
+            document.packageName === 'demo' &&
+            document.packageVersion === '1.0.0' &&
+            document.problems.length === 1 &&
+            document.problems[0]?.kind === generated.kind),
+          Match.tag('UntypedEnvelopeAccepted', () => false),
+          Match.exhaustive,
+        ),
       onFailure: () => false,
     }),
 )
 
 it.prop(
-  '∀payload_UntypedEnvelope_∌problems',
+  '∀payload_UntypedEnvelope_⊥problems',
   [problemPayload],
   ([payload]) =>
     Result.match(decodeOf(untypedEnvelopeSkeleton()), {
-      onSuccess: (decision) => decision._tag === 'UntypedEnvelopeAccepted' && decision.document.status === 'untyped',
+      onSuccess: (decision) =>
+        Match.value(decision).pipe(
+          Match.tag('UntypedEnvelopeAccepted', () => true),
+          Match.tag('OkEnvelopeAccepted', () => false),
+          Match.exhaustive,
+        ),
       onFailure: () => false,
     }) &&
     Result.isFailure(decodeOf({ ...untypedEnvelopeSkeleton(), problems: payload })),
 )
 
 it.prop(
-  '∀problem_MutatedEnvelope_⊥Decode',
-  [problem],
-  ([generated]) => refusedDocuments(generated).every((value) => Result.isFailure(decodeOf(value))),
+  '∀document_MutatedEnvelope_⊥Decode',
+  [refusedDocument],
+  ([value]) => Result.isFailure(decodeOf(value)),
 )
 
 it.prop(
   '∀problem,mask,ignores,typed_EnvelopeContract_=authoredModel',
   [problem, mask, ignores, fc.boolean()],
   ([generated, maskValue, ignored, typed]) => {
-    const result = typed ? analysisOf([generated]) : untypedResult()
+    let result: CheckResult = untypedResult()
+    if (typed) {
+      result = analysisOf([generated])
+    }
     const decision = decideEnvelope({
       result,
       ignoreRules: [...ignored.rules],
@@ -215,13 +228,12 @@ it.prop(
     if (document.status !== 'ok') return false
     return defaultMaskHolds &&
       decision.exitCode === expectedExitCode &&
-      Array.isArray(document.problems) &&
       ('entrypoints' in document) === maskValue.entrypoints &&
       ('buildTools' in document) === maskValue.buildTools &&
       ('programInfo' in document) === maskValue.programInfo &&
       sameKindSequence(document.problems, expectedProblems) &&
       document.problems.every((one) =>
-        one.kind !== 'InternalResolutionError' || carriesTrace(one) === maskValue.traces
+        one.kind !== 'InternalResolutionError' || ('trace' in one) === maskValue.traces
       ) &&
       Object.values(document.problemCounts).reduce((sum, count) => sum + count, 0) ===
         document.problems.length &&

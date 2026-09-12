@@ -1,5 +1,5 @@
 import { it } from '@effect/vitest'
-import { Predicate, Result } from 'effect'
+import { Match, Predicate, Result } from 'effect'
 import * as fc from 'effect/testing/FastCheck'
 
 import {
@@ -144,7 +144,11 @@ it.prop(
   ([row]) =>
     Result.match(loadText(row.text), {
       onSuccess: (decision) =>
-        decision._tag === 'AttwConfigLoaded' && holdsAuthoredValues(decision.config, row.expected),
+        Match.value(decision).pipe(
+          Match.tag('AttwConfigLoaded', ({ config }) => holdsAuthoredValues(config, row.expected)),
+          Match.tag('AttwConfigAbsent', () => false),
+          Match.exhaustive,
+        ),
       onFailure: () => false,
     }),
 )
@@ -157,7 +161,12 @@ it.prop('∀path_ConfigFileAbsent_=Absent', [fc.string()], ([filePath]) =>
   Result.match(
     loadAttwConfig(new LoadAttwConfigCommand({ request: new AttwConfigFileAbsentCommand({ filePath }) })),
     {
-      onSuccess: (decision) => decision._tag === 'AttwConfigAbsent',
+      onSuccess: (decision) =>
+        Match.value(decision).pipe(
+          Match.tag('AttwConfigAbsent', () => true),
+          Match.tag('AttwConfigLoaded', () => false),
+          Match.exhaustive,
+        ),
       onFailure: () => false,
     },
   ))

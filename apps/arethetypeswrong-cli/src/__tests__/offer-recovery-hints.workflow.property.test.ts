@@ -184,7 +184,11 @@ const includeList: fc.Arbitrary<readonly EnvelopeMaskField[]> = fc.array(
 )
 
 const joinedTokens = (fields: readonly EnvelopeMaskField[]): readonly string[] =>
-  fields.length === 0 ? [] : [fields.join(',')]
+  Match.value(fields.length === 0).pipe(
+    Match.when(true, () => []),
+    Match.when(false, () => [fields.join(',')]),
+    Match.exhaustive,
+  )
 
 it.prop('∀situation_Hints_=authoredTable', [fc.constantFrom(...situationNames)], ([situation]) => {
   const spec = situationTable[situation]
@@ -213,12 +217,11 @@ it.prop(
 )
 
 it.prop(
-  '∀situation_ExpansionHint_∋EveryMaskField',
+  '∀situation_ExpansionHint_⊇EveryMaskField',
   [fc.constantFrom(...expansionSituations)],
   ([situation]) => {
     const texts = hintsOf(situationTable[situation].state).map((hint) => hint.text)
-    return texts.length > 0 &&
-      texts.some((text) => text.includes('--include')) &&
+    return texts.some((text) => text.includes('--include')) &&
       EnvelopeMaskFields.every((field) => texts.some((text) => text.includes(field)))
   },
 )
@@ -238,7 +241,11 @@ it.prop(
 it.prop('∀fields_JoinedAndPaddedIncludeTokens_=Accepted', [includeList], ([fields]) => {
   const joined = joinedTokens(fields)
   const padded = joined.map((token) => ` ${token} `)
-  const expected: readonly HintId[] = fields.length > 0 ? [] : ['expansion']
+  const expected: readonly HintId[] = Match.value(fields.length > 0).pipe(
+    Match.when(true, (): readonly HintId[] => []),
+    Match.when(false, (): readonly HintId[] => ['expansion']),
+    Match.exhaustive,
+  )
   const joinedIds = hintsOf(run({ include: joined })).map((hint) => hint.id)
   const paddedIds = hintsOf(run({ include: padded })).map((hint) => hint.id)
   return Result.isSuccess(offerRecoveryHints(run({ include: joined }))) &&

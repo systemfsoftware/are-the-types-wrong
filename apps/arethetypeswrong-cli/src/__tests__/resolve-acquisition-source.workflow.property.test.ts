@@ -321,9 +321,11 @@ it.prop('∀spec_ManifestUrl_≡EncodedSegments', [parsedSpec], ([spec]) => {
   const versionSegment = segments[1] ?? ''
   return segments.length === 2 &&
     decodeURIComponent(nameSegment) === spec.name &&
-    (spec.versionKind === 'none'
-      ? versionSegment === defaultTag
-      : decodeURIComponent(versionSegment) === spec.version) &&
+    Match.value(spec.versionKind === 'none').pipe(
+      Match.when(true, () => versionSegment === defaultTag),
+      Match.when(false, () => decodeURIComponent(versionSegment) === spec.version),
+      Match.exhaustive,
+    ) &&
     !manifest.includes('?') &&
     !manifest.includes('#') &&
     !manifest.includes(' ')

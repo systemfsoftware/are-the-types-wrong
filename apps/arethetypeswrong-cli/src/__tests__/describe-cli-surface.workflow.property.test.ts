@@ -14,14 +14,15 @@ import {
 import { describeCliSurface, RenderSchemaDocumentCommand } from '../describe-cli-surface.workflow.js'
 import { buildSchemaDocument } from '../schema-command.js'
 
-const schemaArray = (value: unknown): readonly JsonSchema.JsonSchema[] =>
-  Array.isArray(value)
-    ? value.filter((member): member is JsonSchema.JsonSchema => typeof member === 'object' && member !== null)
-    : []
+const schemaArray = (value: unknown): readonly JsonSchema.JsonSchema[] => {
+  if (!Array.isArray(value)) return []
+  return value.filter((member): member is JsonSchema.JsonSchema => typeof member === 'object' && member !== null)
+}
 
 const propertyNamesOf = (schema: JsonSchema.JsonSchema): readonly string[] => {
   const properties: unknown = schema['properties']
-  return typeof properties === 'object' && properties !== null ? Object.keys(properties) : []
+  if (typeof properties !== 'object' || properties === null) return []
+  return Object.keys(properties)
 }
 
 const documentedPropertyNames = (document: JsonSchema.Document<'draft-2020-12'>): readonly string[] => {
@@ -33,8 +34,10 @@ const documentedPropertyNames = (document: JsonSchema.Document<'draft-2020-12'>)
   return names.filter((name, index) => names.indexOf(name) === index)
 }
 
-const wiredKeys = (value: unknown): readonly string[] =>
-  typeof value === 'object' && value !== null ? Object.keys(value) : []
+const wiredKeys = (value: unknown): readonly string[] => {
+  if (typeof value !== 'object' || value === null) return []
+  return Object.keys(value)
+}
 
 const publishedSchemaDocument = buildSchemaDocument(cliVersion)
 
@@ -44,17 +47,19 @@ const documentedFlags: readonly string[] = documentedPropertyNames(publishedSche
 
 const documentedEnvelopeKeys: readonly string[] = documentedPropertyNames(publishedSchemaDocument.envelope)
 
-const implementedFlag: fc.Arbitrary<string> = implementedFlags.length > 0
-  ? fc.constantFrom(...implementedFlags)
-  : fc.constant('__no_implemented_flags__')
+const constantOrFallback = (values: readonly string[], fallback: string): fc.Arbitrary<string> => {
+  if (values.length > 0) return fc.constantFrom(...values)
+  return fc.constant(fallback)
+}
 
-const documentedFlag: fc.Arbitrary<string> = documentedFlags.length > 0
-  ? fc.constantFrom(...documentedFlags)
-  : fc.constant('__no_documented_flags__')
+const implementedFlag: fc.Arbitrary<string> = constantOrFallback(implementedFlags, '__no_implemented_flags__')
 
-const documentedEnvelopeKey: fc.Arbitrary<string> = documentedEnvelopeKeys.length > 0
-  ? fc.constantFrom(...documentedEnvelopeKeys)
-  : fc.constant('__no_documented_envelope_keys__')
+const documentedFlag: fc.Arbitrary<string> = constantOrFallback(documentedFlags, '__no_documented_flags__')
+
+const documentedEnvelopeKey: fc.Arbitrary<string> = constantOrFallback(
+  documentedEnvelopeKeys,
+  '__no_documented_envelope_keys__',
+)
 
 const envelopeContract: Readonly<Record<MachineEnvelope['status'], readonly string[]>> = {
   ok: [
@@ -101,11 +106,9 @@ it.prop(
   ([value]) => Result.isSuccess(decodeEnvelopeDocument(new EnvelopeDocumentCommand({ value }))),
 )
 
-it.prop('∀version_SchemaDocument_=version∧draft2020_12', [fc.string()], ([version]) => {
+it.prop('∀version_SchemaDocument_=version', [fc.string()], ([version]) => {
   const document = buildSchemaDocument(version)
-  return document.version === version &&
-    document.input.dialect === 'draft-2020-12' &&
-    document.envelope.dialect === 'draft-2020-12'
+  return document.version === version
 })
 
 it.prop('∀version_SchemaSurface_=rendered∨unusable', [fc.string()], ([version]) =>

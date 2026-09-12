@@ -133,7 +133,7 @@ const holdsRenderedDocument = (failure: AttwFailure, isTty: boolean): boolean =>
     Schema.decodeUnknownResult(FailureDocumentSchema, { onExcessProperty: 'error' })(parsed),
     {
       onSuccess: (document) =>
-        document.kind === failure._tag &&
+        Predicate.isTagged(failure, document.kind) &&
         document.message === failure.message &&
         document.recovery === failure.recovery,
       onFailure: () => false,
@@ -173,7 +173,7 @@ it.prop(
     }),
 )
 
-it.prop('∀observation_RawCause_∌Decided', [rawStatusObservation], ([raw]) => {
+it.prop('∀observation_RawCause_≠Decided', [rawStatusObservation], ([raw]) => {
   const cause = raw.cause
   return Match.value(classificationOf(raw)).pipe(
     Match.tag('Success', ({ success: decided }) =>

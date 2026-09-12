@@ -55,7 +55,7 @@ Feature('Entrypoint discovery across an export map with blocked subpaths').body(
           }
           const entrypoint = analysed.entrypoints[row.subpath]
           expect(entrypoint).toBeDefined()
-          expect(entrypoint?.isWildcard).toBe(row.shape === 'a wildcard')
+          expect(entrypoint.isWildcard).toBe(row.shape === 'a wildcard')
         }),
       ),
   )
