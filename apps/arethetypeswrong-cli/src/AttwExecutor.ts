@@ -9,15 +9,16 @@ import {
 import { Effect, Layer, Schema as S } from 'effect'
 import { ChildProcessSpawner } from 'effect/unstable/process/ChildProcessSpawner'
 
+import { classifyRegistryFailure } from './Failure.js'
+import { AnalysisFailed, type AttwFailure, PackFailed, TargetNotPackable } from './Failure.schema.js'
 import { CliFilesystem as Filesystem } from './FilesystemAdapter.js'
 import { computeExitCode } from './GetExitCode.js'
 import { ComputeExitCodeCommand } from './GetExitCode.schema.js'
 import { PackRunner } from './PackRunnerAdapter.js'
 import { applyProfile, type CliProfileName } from './Profiles.js'
 import { ApplyProfileCommand } from './Profiles.schema.js'
-import { RegistryDocument, RegistryFetchError } from './Registry.schema.js'
+import { RegistryDocument } from './Registry.schema.js'
 import { renderAnalysis } from './Render.js'
-import { Stdin } from './StdinAdapter.js'
 import { Terminal } from './TerminalAdapter.js'
 
 export type CliFormat = 'auto' | 'table' | 'table-flipped' | 'ascii' | 'json'
@@ -70,11 +71,30 @@ export const prepareAnalysis = (
   return { result, ignoreRules, ignoreResolutions }
 }
 
+const targetUnreadable = (): TargetNotPackable =>
+  new TargetNotPackable({
+    message: 'The target could not be read as a package tarball or directory.',
+    recovery: 'Pass an existing directory with --pack, an existing .tgz file, or a package name with --from-npm.',
+  })
+
+const packFailed = (): PackFailed =>
+  new PackFailed({
+    message: '`npm pack` did not produce a readable tarball in the target directory.',
+    recovery:
+      'Run `npm pack` in the target directory to see the failure, fix it, then rerun the same command with --pack.',
+  })
+
+const analysisFailed = (): AnalysisFailed =>
+  new AnalysisFailed({
+    message: 'The analysis failed before it produced a result.',
+    recovery: 'Rerun the same command with --pack on the package directory to rule out a truncated tarball.',
+  })
+
 const acquireTarball = (
   request: CliRequest,
 ): Effect.Effect<
   { bytes: Uint8Array; ref: { packageName: string; packageVersion: string; tarballUrl: string } },
-  never,
+  AttwFailure,
   Filesystem | PackRunner | ChildProcessSpawner
 > =>
   Effect.gen(function*() {
@@ -82,9 +102,9 @@ const acquireTarball = (
     const target = request.fileOrDirectory
     if (request.pack === true) {
       const packRunner = yield* PackRunner
-      const packed = yield* packRunner.pack(target).pipe(Effect.orDie)
+      const packed = yield* packRunner.pack(target).pipe(Effect.mapError(() => packFailed()))
       const tarballPath = fs.join(target, packed.tarballPath)
-      const bytes = yield* fs.readBytes(tarballPath).pipe(Effect.orDie)
+      const bytes = yield* fs.readBytes(tarballPath).pipe(Effect.mapError(() => packFailed()))
       yield* fs.deleteFile(tarballPath)
       return {
         bytes,
@@ -92,7 +112,7 @@ const acquireTarball = (
       }
     }
     if (target.endsWith('.tgz') || target.endsWith('.tar.gz')) {
-      const bytes = yield* fs.readBytes(target).pipe(Effect.orDie)
+      const bytes = yield* fs.readBytes(target).pipe(Effect.mapError(() => targetUnreadable()))
       return {
         bytes,
         ref: { packageName: target, packageVersion: 'local', tarballUrl: `file://${target}` },
@@ -109,38 +129,42 @@ const acquireTarball = (
     const isNpmSpec = !npmTarget.startsWith('file:')
     if (isNpmSpec) {
       const [name = npmTarget, version = 'latest'] = npmTarget.split('@').filter(Boolean)
-      const registryJson = yield* Effect.tryPromise({
-        try: async (): Promise<unknown> => {
-          const res = await fetch(
-            `${request.registry.replace(/\/$/, '')}/${encodeURIComponent(name)}/${version}`,
-          )
-          if (res.status === 404) throw new RegistryFetchError({ message: `Package not found: ${npmTarget}` })
-          if (!res.ok) throw new RegistryFetchError({ message: `Registry returned ${res.status} for ${npmTarget}` })
-          return await res.json()
-        },
-        catch: (e) => {
-          if (e instanceof RegistryFetchError) return e
-          return new RegistryFetchError({ message: `Registry request failed for ${npmTarget}`, cause: e })
-        },
-      }).pipe(Effect.orDie)
-      const registry = yield* S.decodeUnknownEffect(RegistryDocument)(registryJson).pipe(Effect.orDie)
-      const tarballRes = yield* Effect.tryPromise({
-        try: async () => {
-          const res = await fetch(registry.dist.tarball)
-          if (!res.ok) throw new RegistryFetchError({ message: `Tarball fetch returned ${res.status}` })
-          return new Uint8Array(await res.arrayBuffer())
-        },
-        catch: (e) => {
-          if (e instanceof RegistryFetchError) return e
-          return new RegistryFetchError({ message: `Tarball fetch failed for ${npmTarget}`, cause: e })
-        },
-      }).pipe(Effect.orDie)
+      const manifestUrl = `${request.registry.replace(/\/$/, '')}/${encodeURIComponent(name)}/${version}`
+      const manifestResponse = yield* Effect.tryPromise({
+        try: async () => await fetch(manifestUrl),
+        catch: () => classifyRegistryFailure({ kind: 'no-response' }),
+      })
+      if (!manifestResponse.ok) {
+        return yield* Effect.fail(
+          classifyRegistryFailure({ kind: 'http-status', status: manifestResponse.status }),
+        )
+      }
+      const manifestBody = yield* Effect.tryPromise({
+        try: async (): Promise<unknown> => await manifestResponse.json(),
+        catch: () => classifyRegistryFailure({ kind: 'unexpected-shape' }),
+      })
+      const registry = yield* S.decodeUnknownEffect(RegistryDocument)(manifestBody).pipe(
+        Effect.mapError(() => classifyRegistryFailure({ kind: 'unexpected-shape' })),
+      )
+      const tarballResponse = yield* Effect.tryPromise({
+        try: async () => await fetch(registry.dist.tarball),
+        catch: () => classifyRegistryFailure({ kind: 'no-response' }),
+      })
+      if (!tarballResponse.ok) {
+        return yield* Effect.fail(
+          classifyRegistryFailure({ kind: 'http-status', status: tarballResponse.status }),
+        )
+      }
+      const tarballBytes = yield* Effect.tryPromise({
+        try: async () => new Uint8Array(await tarballResponse.arrayBuffer()),
+        catch: () => classifyRegistryFailure({ kind: 'unexpected-shape' }),
+      })
       return {
-        bytes: tarballRes,
+        bytes: tarballBytes,
         ref: { packageName: registry.name, packageVersion: registry.version, tarballUrl: registry.dist.tarball },
       }
     }
-    const bytes = yield* fs.readBytes(target).pipe(Effect.orDie)
+    const bytes = yield* fs.readBytes(target).pipe(Effect.mapError(() => targetUnreadable()))
     return {
       bytes,
       ref: { packageName: target, packageVersion: 'local', tarballUrl: `file://${target}` },
@@ -154,7 +178,7 @@ const copyIfNonEmpty = (values: readonly string[] | undefined): string[] | undef
 
 export const runAttw = (
   request: CliRequest,
-): Effect.Effect<number, never, Terminal | Filesystem | Stdin | PackRunner | ChildProcessSpawner> =>
+): Effect.Effect<number, AttwFailure, Terminal | Filesystem | PackRunner | ChildProcessSpawner> =>
   Effect.gen(function*() {
     const terminal = yield* Terminal
 
@@ -162,7 +186,7 @@ export const runAttw = (
     const storeLayer = PackageStoreStub(ref, bytes)
     const checkPackageLayer = CheckPackageLive.pipe(Layer.provide(storeLayer))
 
-    const checkEffect: Effect.Effect<CheckResult, never, never> = Effect.gen(function*() {
+    const checkEffect: Effect.Effect<CheckResult, AnalysisFailed, never> = Effect.gen(function*() {
       const checkPackage = yield* CheckPackage
       return yield* checkPackage.execute(request.fileOrDirectory, {
         entrypoints: copyIfNonEmpty(request.entrypoints),
@@ -172,13 +196,8 @@ export const runAttw = (
       })
     }).pipe(
       Effect.provide(Layer.mergeAll(checkPackageLayer, storeLayer)),
-      Effect.catch(() =>
-        Effect.succeed<CheckResult>({
-          packageName: request.fileOrDirectory,
-          packageVersion: 'error',
-          types: false,
-        })
-      ),
+      Effect.mapError(() => analysisFailed()),
+      Effect.catchDefect(() => Effect.fail(analysisFailed())),
     )
     const result = yield* checkEffect
     const prepared = prepareAnalysis(request, result)

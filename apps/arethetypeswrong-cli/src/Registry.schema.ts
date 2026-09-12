@@ -10,9 +10,3 @@ export const RegistryDocument = S.Struct({
   version: S.String,
   dist: S.Struct({ tarball: S.String }),
 })
-
-/** A registry request that never produced a tarball, carrying its cause. */
-export class RegistryFetchError extends S.TaggedError<RegistryFetchError>()('RegistryFetchError', {
-  message: S.String,
-  cause: S.optional(S.Unknown),
-}) {}

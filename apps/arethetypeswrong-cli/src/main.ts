@@ -15,14 +15,13 @@ import { AttwConfigFileLayer } from './AttwConfigExecutor.js'
 import { attwCommand } from './AttwHandler.js'
 import { FilesystemLive } from './FilesystemAdapter.js'
 import { PackRunnerLive } from './PackRunnerAdapter.js'
-import { StdinLive } from './StdinAdapter.js'
 import { TerminalLive } from './TerminalAdapter.js'
 
 const cliConfigLayer = Layer.provideMerge(cliConfigLayerFactory(), AttwConfigFileLayer)
 
 const main = Command.runWith(attwCommand, { version: manifest.version })
 
-const cliLayer = Layer.mergeAll(TerminalLive, FilesystemLive, StdinLive)
+const cliLayer = Layer.mergeAll(TerminalLive, FilesystemLive)
 
 const nodeBase = Layer.mergeAll(nodeFileSystemLayer, nodePathLayer, nodeTerminalLayer, nodeStdioLayer)
 const nodeSpawnerLayer = nodeChildProcessSpawnerLayer.pipe(Layer.provide(nodeBase))

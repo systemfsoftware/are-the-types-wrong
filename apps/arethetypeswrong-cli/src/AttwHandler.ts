@@ -8,7 +8,10 @@ import * as Flag from 'effect/unstable/cli/Flag'
 
 import type { CliRequest } from './AttwExecutor.js'
 import { runAttw } from './AttwExecutor.js'
+import { failureOutcome } from './Failure.js'
+import type { AttwFailure } from './Failure.schema.js'
 import { CliFormat, CliProfile } from './ProblemUtils.js'
+import { Terminal } from './TerminalAdapter.js'
 
 const defaultFormat: typeof CliFormat[number] = 'auto'
 const defaultProfile: typeof CliProfile[number] = 'strict'
@@ -62,6 +65,14 @@ const unwrap = <A>(opt: Option.Option<A>): A | undefined => {
   if (Option.isSome(opt)) return opt.value
   return undefined
 }
+
+const renderFailure = (failure: AttwFailure): Effect.Effect<number, never, Terminal> =>
+  Effect.gen(function*() {
+    const terminal = yield* Terminal
+    const outcome = failureOutcome(failure, { isTty: terminal.isTty })
+    yield* terminal.stderr.write(outcome.document)
+    return outcome.exitCode
+  })
 
 export const attwCommand = Command.make(
   'attw',
@@ -117,7 +128,7 @@ export const attwCommand = Command.make(
         color: config.color,
         registry: config.registry,
       }
-      const exitCode = yield* runAttw(input)
+      const exitCode = yield* runAttw(input).pipe(Effect.catch(renderFailure))
       yield* Effect.sync(() => {
         process.exitCode = exitCode
       })
