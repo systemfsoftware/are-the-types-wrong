@@ -129,16 +129,16 @@ Every byte figure below was measured by `node evals/run.ts` on 2026-09-12; the p
   (R9) — it creates and deletes a tarball — so it sits outside the read-shaped corpus. The fixture directory
   stays for that future row.
 
-## Not collected by a test runner or a mutator
+## Not collected by vitest or a mutator
 
 - `apps/arethetypeswrong-cli-e2e/vitest.config.ts` sets `include: ['tests/**/*.test.ts']` and
   `passWithNoTests: false`, so nothing under `evals/` is collected. Observed: `pnpm exec vitest list
   --filesOnly` in that package lists only `tests/cli.e2e.test.ts`.
 - `evals/` holds no `*.test.ts`; `run.ts` imports only `node:` builtins and never imports vitest, so no
   include glob or mutation config reaches it by convention.
-- `apps/arethetypeswrong-cli-e2e/package.json` declares no `test` script, only `test:e2e` (`vitest run`), so
-  the root `test` turbo task never enters the package; the root `test:e2e` task is `cache: false` with no
-  inputs (`turbo.json`).
+- `apps/arethetypeswrong-cli-e2e/package.json` declares no `test` script, only `test:e2e` (`vitest run`) and
+  `test:evals` (`node evals/run.ts`), so the root `test` turbo task never enters the package; both tasks are
+  `cache: false` with no inputs (`turbo.json`).
 - No workspace package declares a `mutation` script — only the root `package.json` delegates to the turbo
   task — and no stryker config is tracked (`git ls-files` matches only
   `docs/solutions/tooling-decisions/stryker-nan-mutation-score-scaffold-packages.md`), so the root `mutation`

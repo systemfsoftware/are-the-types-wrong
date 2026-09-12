@@ -264,9 +264,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
-      ajv:
-        specifier: ^8.17.1
-        version: 8.20.0
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-rc.112
       oxlint:
         specifier: 'catalog:'
         version: 1.82.0(oxlint-tsgolint@7.0.2001)

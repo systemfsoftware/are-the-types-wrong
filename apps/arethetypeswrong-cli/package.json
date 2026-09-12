@@ -12,8 +12,7 @@
   "files": [
     "dist",
     "LICENSE",
-    "SKILL.md",
-    "CONTEXT.md"
+    "agent-plugin"
   ],
   "bin": {
     "attw": "./dist/main.mjs"

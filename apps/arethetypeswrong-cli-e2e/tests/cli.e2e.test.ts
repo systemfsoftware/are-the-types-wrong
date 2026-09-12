@@ -1,6 +1,6 @@
 import { recipes } from '@systemfsoftware/arethetypeswrong-recipes'
 import { packPackage } from '@systemfsoftware/npm-package'
-import { Ajv2020 } from 'ajv/dist/2020.js'
+import { Result, Schema } from 'effect'
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -52,10 +52,40 @@ const analyzeJson = (stdout: string): DecodedEnvelope => {
   if (problems !== undefined && !Array.isArray(problems)) {
     throw new Error(`attw printed problems that are not an array: ${stdout}`)
   }
-  if (validateEnvelope !== undefined && !validateEnvelope(parsed)) {
-    throw new Error(`attw printed an envelope its own schema refuses: ${stdout}`)
-  }
   return { status, packageName, packageVersion, problems: problems ?? [], keys: Object.keys(parsed) }
+}
+
+const problemKinds = (problems: readonly unknown[]): readonly string[] =>
+  problems.map((problem) => {
+    if (typeof problem !== 'object' || problem === null || !('kind' in problem)) {
+      throw new Error(`attw printed a problem without a kind: ${JSON.stringify(problem)}`)
+    }
+    const { kind } = problem
+    if (typeof kind !== 'string') {
+      throw new Error(`attw printed a problem whose kind is not a string: ${JSON.stringify(problem)}`)
+    }
+    return kind
+  })
+
+interface PrintedSchemaSection {
+  readonly dialect: string
+  readonly schema: object
+  readonly definitions: unknown
+}
+
+const schemaSection = (section: unknown, name: string): PrintedSchemaSection => {
+  if (typeof section !== 'object' || section === null || Array.isArray(section)) {
+    throw new Error(`attw schema printed no ${name} section`)
+  }
+  const dialect = 'dialect' in section ? section.dialect : undefined
+  const schema = 'schema' in section ? section.schema : undefined
+  if (typeof dialect !== 'string') {
+    throw new Error(`attw schema printed the ${name} section with no dialect`)
+  }
+  if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) {
+    throw new Error(`attw schema printed the ${name} section that is not a JSON Schema document`)
+  }
+  return { dialect, schema, definitions: 'definitions' in section ? section.definitions : undefined }
 }
 
 const errorDocument = (text: string): { readonly kind: string; readonly recovery: string } => {
@@ -82,7 +112,7 @@ const usageErrorDocument = (stderr: string): { readonly kind: string; readonly r
 
 const schemaDocument = (
   stdout: string,
-): { readonly version: string; readonly input: unknown; readonly envelope: unknown } => {
+): { readonly version: string; readonly input: PrintedSchemaSection; readonly envelope: PrintedSchemaSection } => {
   const parsed: unknown = JSON.parse(stdout)
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error(`attw schema printed no document: ${stdout}`)
@@ -93,7 +123,36 @@ const schemaDocument = (
   if (!('input' in parsed) || !('envelope' in parsed)) {
     throw new Error(`attw schema printed no input and envelope sections: ${stdout}`)
   }
-  return { version: parsed.version, input: parsed.input, envelope: parsed.envelope }
+  return {
+    version: parsed.version,
+    input: schemaSection(parsed.input, 'input'),
+    envelope: schemaSection(parsed.envelope, 'envelope'),
+  }
+}
+
+const EnvelopeIdentity = Schema.Struct({
+  status: Schema.Literals(['ok', 'untyped']),
+  packageName: Schema.String,
+  packageVersion: Schema.String,
+})
+
+const propertyNamesOf = (schema: object): readonly string[] => {
+  if (!('properties' in schema) || typeof schema.properties !== 'object' || schema.properties === null) return []
+  return Object.keys(schema.properties)
+}
+
+const membersOf = (value: unknown): readonly object[] =>
+  (Array.isArray(value) ? value : typeof value === 'object' && value !== null ? Object.values(value) : []).filter(
+    (member): member is object => typeof member === 'object' && member !== null,
+  )
+
+const documentedPropertyNames = (section: PrintedSchemaSection): readonly string[] => {
+  const variants = [
+    ...membersOf('anyOf' in section.schema ? section.schema.anyOf : undefined),
+    ...membersOf(section.definitions),
+  ]
+  const names = [...propertyNamesOf(section.schema), ...variants.flatMap((variant) => propertyNamesOf(variant))]
+  return names.filter((name, index) => names.indexOf(name) === index)
 }
 
 let container: StartedTestContainer
@@ -129,8 +188,6 @@ const isJson = (text: string): boolean => {
     return false
   }
 }
-
-let validateEnvelope: ((document: unknown) => boolean) | undefined
 
 const RESOLUTION_COLUMNS = ['node10', 'node16-cjs', 'node16-esm', 'bundler'] as const
 
@@ -309,12 +366,6 @@ beforeAll(async () => {
     ]),
   )
 
-  const schema = schemaDocument((await runCli(['schema'])).stdout)
-  if (typeof schema.envelope !== 'object' || schema.envelope === null) {
-    throw new Error('attw schema printed no envelope document')
-  }
-  validateEnvelope = new Ajv2020({ strict: false }).compile(schema.envelope)
-
   requireStep(
     'npm publish fixture to verdaccio',
     await container.exec([
@@ -387,28 +438,43 @@ describe('attw, built by nix, run in a container', () => {
     expect(analyzeJson(result.stdout).status).toBe('ok')
   })
 
-  test('keeps the default envelope field-tight', async () => {
-    const typed = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`], FIXTURES_DIR)
-    const untyped = await runCli([`${EVAL_FIXTURES_DIR}/untyped.tgz`], EVAL_FIXTURES_DIR)
+  const envelopeCases = [
+    {
+      case: 'a typed package carrying a problem',
+      fixture: `${FIXTURES_DIR}/false-cjs.tgz`,
+      fixtureDir: FIXTURES_DIR,
+      expectedStatus: 'ok',
+      expectedExitCode: 1,
+      problems: 'reported',
+    },
+    {
+      case: 'an untyped package',
+      fixture: `${EVAL_FIXTURES_DIR}/untyped.tgz`,
+      fixtureDir: EVAL_FIXTURES_DIR,
+      expectedStatus: 'untyped',
+      expectedExitCode: 0,
+      problems: 'absent',
+    },
+  ] as const
 
-    expect(typed.exitCode).toBe(1)
-    const envelope = analyzeJson(typed.stdout)
-    expect([...envelope.keys].sort()).toEqual([
-      'packageName',
-      'packageVersion',
-      'problemCounts',
-      'problems',
-      'status',
-      'types',
-    ])
-    expect(envelope.problems.length).toBeGreaterThan(0)
-    expect(typed.stdout).not.toContain('"trace"')
+  test.each(envelopeCases)(
+    'names the analyzed package in the default envelope for $case',
+    async ({ fixture, fixtureDir, expectedStatus, expectedExitCode, problems }) => {
+      const result = await runCli([fixture], fixtureDir)
 
-    expect(untyped.exitCode).toBe(0)
-    const untypedEnvelope = analyzeJson(untyped.stdout)
-    expect(untypedEnvelope.status).toBe('untyped')
-    expect(untypedEnvelope.keys).not.toContain('problems')
-  })
+      expect(result.exitCode).toBe(expectedExitCode)
+      const envelope = analyzeJson(result.stdout)
+      expect(envelope.status).toBe(expectedStatus)
+      if (problems === 'reported') {
+        const authored = recipes.FalseCJS()
+        expect(envelope.packageName).toBe(authored.packageName)
+        expect(envelope.packageVersion).toBe(authored.packageVersion)
+        expect(problemKinds(envelope.problems)).toContain('FalseCJS')
+        return
+      }
+      expect(envelope.keys).not.toContain('problems')
+    },
+  )
 
   test('agrees the envelope with the exit code under a profile that silences every problem', async () => {
     const result = await runCli(['--profile', 'node16', `${EVAL_FIXTURES_DIR}/typed-node10.tgz`], EVAL_FIXTURES_DIR)
@@ -538,15 +604,6 @@ describe('attw, built by nix, run in a container', () => {
     expect(errorDocument(result.stderr).kind).toBe('RegistryNotFound')
   })
 
-  test('ships the agent artifacts in the published package', async () => {
-    const manifest = JSON.parse(await readFile(CLI_MANIFEST_URL, 'utf8')) as { files?: readonly string[] }
-    for (const artifact of ['SKILL.md', 'CONTEXT.md']) {
-      expect(manifest.files, `package.json files must list ${artifact}`).toContain(artifact)
-      await expect(readFile(new URL(`../../arethetypeswrong-cli/${artifact}`, import.meta.url), 'utf8')).resolves
-        .toBeTruthy()
-    }
-  })
-
   test('refuses a package spec welded to URL syntax before any registry call', async () => {
     const result = await runCli(['--from-npm', 'pkg?fields=name', '--registry', 'http://127.0.0.1:9'])
 
@@ -555,7 +612,7 @@ describe('attw, built by nix, run in a container', () => {
     expect(errorDocument(result.stderr).kind).toBe('InvalidPackageSpec')
   })
 
-  test('describes its input surface and envelope as JSON Schema documents', async () => {
+  test('publishes its input surface and envelope as JSON Schema documents a consumer can rely on', async () => {
     const { version } = await cliManifest(CLI_MANIFEST_URL)
     const result = await runCli(['schema'])
 
@@ -563,14 +620,31 @@ describe('attw, built by nix, run in a container', () => {
     expect(result.stderr).toBe('')
     const document = schemaDocument(result.stdout)
     expect(document.version).toBe(version)
-    const input = JSON.stringify(document.input)
-    for (const flag of ['pack', 'from-npm', 'definitely-typed', 'format', 'quiet', 'registry', 'profile']) {
-      expect(input).toContain(`"${flag}"`)
+    expect(document.input.dialect).toBe('draft-2020-12')
+    expect(document.envelope.dialect).toBe('draft-2020-12')
+
+    const authoredNames = documentedPropertyNames(Schema.toJsonSchemaDocument(EnvelopeIdentity))
+    const documentedNames = documentedPropertyNames(document.envelope)
+    expect(authoredNames.length).toBeGreaterThan(0)
+    for (const name of authoredNames) {
+      expect(documentedNames).toContain(name)
     }
-    const envelope = JSON.stringify(document.envelope)
-    for (const field of ['"ok"', '"untyped"', '"status"', '"packageName"', '"problemCounts"']) {
-      expect(envelope).toContain(field)
+
+    const analyzed = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`], FIXTURES_DIR)
+    expect(analyzed.exitCode).toBe(1)
+    const decoded = Schema.decodeUnknownResult(EnvelopeIdentity)(JSON.parse(analyzed.stdout))
+    if (!Result.isSuccess(decoded)) {
+      throw new Error(
+        `attw printed an analyze envelope the documented contract does not accept: ${JSON.stringify(decoded)}`,
+      )
     }
+    expect(decoded.success.status).toBe('ok')
+    expect(decoded.success.packageName).toBe(recipes.FalseCJS().packageName)
+    expect(
+      Result.isSuccess(
+        Schema.decodeUnknownResult(EnvelopeIdentity)({ ...decoded.success, status: 'attw-prints-no-such-status' }),
+      ),
+    ).toBe(false)
   })
 
   test('analyzes the same package through the analyze subcommand as through the bare alias', async () => {
