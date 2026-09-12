@@ -1,5 +1,7 @@
+import { checkPackage, CheckResultSchema, withTypesCompanion } from '@systemfsoftware/arethetypeswrong'
 import { AnalysisSchema } from '@systemfsoftware/arethetypeswrong'
 import type { Analysis } from '@systemfsoftware/arethetypeswrong'
+import { recipes } from '@systemfsoftware/arethetypeswrong-recipes'
 import { it, layer, makeFeature } from '@systemfsoftware/effect-gherkin-spec'
 import { Effect, Schema } from 'effect'
 import { expect } from 'vitest'
@@ -64,6 +66,24 @@ Feature('The published analysis schema describes every field it declares').body(
       const emitted = JSON.stringify(Schema.toJsonSchemaDocument(AnalysisSchema).schema)
       expect(emitted).toMatch(/"moduleKinds"/)
       expect(emitted).not.toMatch(/"(node10|node16|bundler)":\s*\{\}/)
+    }),
+  )
+
+  scenario(
+    'the live analysis of every recipe decodes through the published result codec',
+    Effect.promise(async () => {
+      const entries = Object.entries(recipes).filter(
+        ([name]) => name !== 'KnownBad' && name !== 'TypesCompanionTypes',
+      )
+      for (const [name, recipe] of entries) {
+        const pkg = recipe()
+        let prepared: Parameters<typeof checkPackage>[0] = pkg
+        if (name === 'TypesCompanion') {
+          prepared = withTypesCompanion(pkg, recipes.TypesCompanionTypes())
+        }
+        const result = await Effect.runPromise(checkPackage(prepared))
+        await Effect.runPromise(Schema.decodeUnknownEffect(CheckResultSchema)(result))
+      }
     }),
   )
 })
