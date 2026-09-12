@@ -44,8 +44,6 @@ export interface CliRequest {
   readonly summary?: boolean
   readonly emoji?: boolean
   readonly color?: boolean
-  readonly configPath?: string
-  readonly moduleKinds?: readonly string[]
   readonly registry: string
 }
 

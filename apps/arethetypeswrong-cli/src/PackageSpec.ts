@@ -10,21 +10,17 @@ import { directoryWithoutPackHint } from './Hints.js'
 
 const acceptedSpecShape = 'Expected `pkg`, `pkg@1.2.3`, `pkg@^1.2.3`, `pkg@next`, or `@scope/pkg`.'
 
-const maximumSpecLength = 214
-
 const refusedCodeUnits: readonly number[] = [...Array.range(0x00, 0x1f), 0x7f]
-
-const isControlCodeUnit = (code: number): boolean => Array.contains(refusedCodeUnits, code)
 
 const containsControlCharacter = (raw: string): boolean =>
   Option.isSome(
     Array.findFirst(
       Array.makeBy(raw.length, (index) => raw.charCodeAt(index)),
-      isControlCodeUnit,
+      (code) => Array.contains(refusedCodeUnits, code),
     ),
   )
 
-const distTag = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const maximumSpecLength = 214
 
 const refuse = (message: string, fix: string): InvalidPackageSpec =>
   new InvalidPackageSpec({ message, recovery: `${fix} ${acceptedSpecShape}` })
@@ -65,6 +61,8 @@ const specRefinements: readonly Refinement<string>[] = [
       ),
   },
 ]
+
+const distTag = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 const parsedSpecRefinements: readonly Refinement<ParsedPackageSpec>[] = [
   {

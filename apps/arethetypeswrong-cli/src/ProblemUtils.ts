@@ -55,28 +55,9 @@ export const CliResolutionKinds = [
 
 export type CliResolutionKind = typeof CliResolutionKinds[number]
 
-export const CliModuleKinds = ['CommonJS', 'ESNext'] as const
-
-export type CliModuleKind = typeof CliModuleKinds[number]
-
 export const CliFormat = ['auto', 'table', 'table-flipped', 'ascii', 'json'] as const
 
 export const CliProfile = ['strict', 'node16', 'esm-only'] as const
-
-export const _problemKinds: readonly ProblemKind[] = [
-  'NoResolution',
-  'UntypedResolution',
-  'FalseCJS',
-  'FalseESM',
-  'CJSResolvesToESM',
-  'FallbackCondition',
-  'CJSOnlyExportsDefault',
-  'NamedExports',
-  'FalseExportDefault',
-  'MissingExportEquals',
-  'UnexpectedModuleSyntax',
-  'InternalResolutionError',
-]
 
 export const isVisibleProblem = (
   problem: Problem,

@@ -1,6 +1,7 @@
-import { ConfigProvider, Effect, Layer } from 'effect'
+import { ConfigProvider, Effect, Layer, Predicate } from 'effect'
 import * as PlatformFs from 'effect/FileSystem'
 import * as PlatformPathMod from 'effect/Path'
+import type { PlatformError } from 'effect/PlatformError'
 
 import { attwConfigUnreadable, decodeAttwConfigText } from './AttwConfig.js'
 import type { ConfigInvalid } from './Failure.schema.js'
@@ -15,9 +16,15 @@ const configProviderEffect: Effect.Effect<
   const fs = yield* PlatformFs.FileSystem
   const path = yield* PlatformPathMod.Path
   const filePath = path.join(process.cwd(), configFileName)
-  const exists = yield* fs.exists(filePath).pipe(Effect.orElseSucceed(() => false))
-  if (!exists) return ConfigProvider.fromUnknown({})
-  const text = yield* fs.readFileString(filePath).pipe(Effect.mapError(() => attwConfigUnreadable(filePath)))
+  const text = yield* fs.readFileString(filePath).pipe(
+    Effect.catchIf(
+      (error): error is PlatformError =>
+        Predicate.isTagged(error, 'PlatformError') && Predicate.isTagged(error.reason, 'NotFound'),
+      () => Effect.succeed(undefined),
+    ),
+    Effect.mapError(() => attwConfigUnreadable(filePath)),
+  )
+  if (text === undefined) return ConfigProvider.fromUnknown({})
   return ConfigProvider.fromUnknown(yield* Effect.fromResult(decodeAttwConfigText(text, filePath)))
 })
 
