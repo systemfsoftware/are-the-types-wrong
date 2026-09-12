@@ -36,8 +36,17 @@ export {
 
 export { CommonJSModuleKind, ESNextModuleKind } from './ModuleKind.js'
 
-export { detectModuleKindDisagreement } from './ModuleKindDisagreement.js'
-export type { ModuleKindDisagreementInput } from './ModuleKindDisagreement.js'
+export {
+  detectModuleKindDisagreement,
+  DetectModuleKindDisagreementCommand,
+  FalseCjsDeclared,
+  FalseEsmDeclared,
+  type ModuleKindDisagreementDecision,
+  ModuleKindObservationComplete,
+  ModuleKindObservationMissing,
+  ModuleKindObservationUnavailable,
+  ModuleKindsAgree,
+} from './detect-module-kind-disagreement.workflow.js'
 
 export { parsePackageSpec } from './PackageSpec.js'
 
