@@ -1,114 +1,75 @@
 import { it } from '@effect/vitest'
-import { Match, Result, Schema } from 'effect'
+import { Result, Schema } from 'effect'
 import * as fc from 'effect/testing/FastCheck'
 
-import {
-  DecideRenderModeCommand,
-  type RenderMode,
-  type RequestedFormat,
-  selectRenderMode,
-} from '../select-render-mode.workflow.js'
+import { DecideRenderModeCommand, type RenderMode, selectRenderMode } from '../select-render-mode.workflow.js'
 
-type ModeFormat = RequestedFormat
-type ExplicitFormat = Exclude<ModeFormat, 'auto'>
-
-interface PinnedRequest {
+interface RenderPolicyRow {
   readonly isTty: boolean
   readonly terminalWidth: number
-  readonly format: string
+  readonly requestedFormat: string
   readonly quiet: boolean
+  readonly expected: RenderMode
 }
+
+const renderPolicy: readonly RenderPolicyRow[] = [
+  { isTty: true, terminalWidth: 200, requestedFormat: 'auto', quiet: true, expected: 'quiet' },
+  { isTty: false, terminalWidth: 0, requestedFormat: 'json', quiet: true, expected: 'quiet' },
+  { isTty: false, terminalWidth: 0, requestedFormat: 'no-such-format', quiet: true, expected: 'quiet' },
+  { isTty: false, terminalWidth: 200, requestedFormat: 'table', quiet: false, expected: 'table' },
+  { isTty: true, terminalWidth: 40, requestedFormat: 'table-flipped', quiet: false, expected: 'table-flipped' },
+  { isTty: true, terminalWidth: 40, requestedFormat: 'ascii', quiet: false, expected: 'ascii' },
+  { isTty: true, terminalWidth: 200, requestedFormat: 'json', quiet: false, expected: 'envelope' },
+  { isTty: false, terminalWidth: 200, requestedFormat: 'auto', quiet: false, expected: 'envelope' },
+  { isTty: false, terminalWidth: 1, requestedFormat: 'auto', quiet: false, expected: 'envelope' },
+  { isTty: true, terminalWidth: 99, requestedFormat: 'auto', quiet: false, expected: 'ascii' },
+  { isTty: true, terminalWidth: 100, requestedFormat: 'auto', quiet: false, expected: 'table-flipped' },
+  { isTty: true, terminalWidth: 101, requestedFormat: 'auto', quiet: false, expected: 'table-flipped' },
+  { isTty: true, terminalWidth: 0, requestedFormat: 'auto', quiet: false, expected: 'ascii' },
+]
+
+const requestAt = (row: RenderPolicyRow): DecideRenderModeCommand =>
+  new DecideRenderModeCommand({
+    isTty: row.isTty,
+    terminalWidth: row.terminalWidth,
+    requestedFormat: row.requestedFormat,
+    quiet: row.quiet,
+  })
 
 const modeOf = (command: DecideRenderModeCommand): RenderMode => Result.getOrThrow(selectRenderMode(command)).mode
 
-const requestAt = (pinned: PinnedRequest): DecideRenderModeCommand =>
-  new DecideRenderModeCommand({
-    isTty: pinned.isTty,
-    terminalWidth: pinned.terminalWidth,
-    requestedFormat: pinned.format,
-    quiet: pinned.quiet,
-  })
-
-const terminalWidth: fc.Arbitrary<number> = fc.integer({ min: 0, max: 4_000 })
-
-const autoRequest = (isTty: boolean): fc.Arbitrary<DecideRenderModeCommand> =>
-  terminalWidth.map((width) => requestAt({ isTty, terminalWidth: width, format: 'auto', quiet: false }))
-
-const anyRequest: fc.Arbitrary<DecideRenderModeCommand> = Schema.toArbitrary(DecideRenderModeCommand)(fc)
-
-const quietRequest: fc.Arbitrary<DecideRenderModeCommand> = anyRequest.map((command) =>
-  new DecideRenderModeCommand({
-    isTty: command.isTty,
-    terminalWidth: command.terminalWidth,
-    requestedFormat: command.requestedFormat,
-    quiet: true,
-  })
-)
-
-const unrequestedFormat: fc.Arbitrary<string> = fc.string().map((raw) => ` ${raw}`)
-
-const explicitFormat: fc.Arbitrary<ExplicitFormat> = fc.constantFrom('table', 'table-flipped', 'ascii', 'json')
-
-interface ExplicitRequest {
-  readonly format: ExplicitFormat
-  readonly command: DecideRenderModeCommand
+const authoredRenderMode = (command: DecideRenderModeCommand): Result.Result<RenderMode, string> => {
+  if (command.quiet) return Result.succeed('quiet')
+  if (command.requestedFormat === 'json') return Result.succeed('envelope')
+  if (command.requestedFormat === 'table') return Result.succeed('table')
+  if (command.requestedFormat === 'table-flipped') return Result.succeed('table-flipped')
+  if (command.requestedFormat === 'ascii') return Result.succeed('ascii')
+  if (command.requestedFormat !== 'auto') return Result.fail(command.requestedFormat)
+  if (!command.isTty) return Result.succeed('envelope')
+  if (command.terminalWidth >= 100) return Result.succeed('table-flipped')
+  return Result.succeed('ascii')
 }
 
-const explicitRequest: fc.Arbitrary<ExplicitRequest> = fc
-  .tuple(fc.boolean(), terminalWidth, explicitFormat)
-  .map(([isTty, width, format]) => ({
-    format,
-    command: requestAt({ isTty, terminalWidth: width, format, quiet: false }),
-  }))
-
-const expectedForFormat: Readonly<Partial<Record<ModeFormat, RenderMode>>> = {
-  json: 'envelope',
-  table: 'table',
-  'table-flipped': 'table-flipped',
-  ascii: 'ascii',
-}
-
-const ttyAutoExpected = (width: number): RenderMode =>
-  Match.value(width).pipe(
-    Match.when((columns: number) => columns >= 100, (): RenderMode => 'table-flipped'),
-    Match.orElse((): RenderMode => 'ascii'),
-  )
-
-const boundaryWidth: fc.Arbitrary<number> = fc.constantFrom(99, 100)
-
-const boundaryExpected: Readonly<Partial<Record<number, RenderMode>>> = {
-  99: 'ascii',
-  100: 'table-flipped',
-}
-
-it.prop('∀width_NonTtyAuto_=envelope', [autoRequest(false)], ([command]) => modeOf(command) === 'envelope')
-
 it.prop(
-  '∀width_TtyAuto_={≥100→table-flipped,<100→ascii}',
-  [autoRequest(true)],
-  ([command]) => modeOf(command) === ttyAutoExpected(command.terminalWidth),
+  '∀row_RenderPolicy_=authoredMode',
+  [fc.constantFrom(...renderPolicy)],
+  ([row]) => modeOf(requestAt(row)) === row.expected,
 )
 
 it.prop(
-  '∀width_TtyAutoBoundary_={99→ascii,100→table-flipped}',
-  [boundaryWidth],
-  ([width]) =>
-    modeOf(requestAt({ isTty: true, terminalWidth: width, format: 'auto', quiet: false })) === boundaryExpected[width],
-)
-
-it.prop(
-  '∀request_ExplicitFormat_=requestedFormat',
-  [explicitRequest],
-  ([{ format, command }]) => modeOf(command) === expectedForFormat[format],
-)
-
-it.prop('∀request_QuietRequest_=quiet', [quietRequest], ([command]) => modeOf(command) === 'quiet')
-
-it.prop(
-  '∀request_UnrequestedFormat_⊥Decided',
-  [fc.boolean(), terminalWidth, unrequestedFormat],
-  ([isTty, width, format]) => {
-    const decided = selectRenderMode(requestAt({ isTty, terminalWidth: width, format, quiet: false }))
-    return Result.isFailure(decided) && decided.failure.format === format
-  },
+  '∀command_RenderPolicyModel_=authoredMode',
+  [Schema.toArbitrary(DecideRenderModeCommand)(fc)],
+  ([command]) =>
+    Result.match(selectRenderMode(command), {
+      onSuccess: (decision) =>
+        Result.match(authoredRenderMode(command), {
+          onSuccess: (expected) => decision.mode === expected,
+          onFailure: () => false,
+        }),
+      onFailure: (refusal) =>
+        Result.match(authoredRenderMode(command), {
+          onSuccess: () => false,
+          onFailure: (format) => refusal.format === format,
+        }),
+    }),
 )

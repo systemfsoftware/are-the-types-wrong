@@ -4,8 +4,8 @@ import * as fc from 'effect/testing/FastCheck'
 
 import { CliInputSchema } from '../CliInput.schema.js'
 import type { MachineEnvelope } from '../decode-envelope-document.workflow.js'
-import { type HintId, HintIds, renderHints } from '../hint-shaping.js'
-import { decodeIncludeMask, type EnvelopeMask, type EnvelopeMaskField, EnvelopeMaskFields } from '../Mask.js'
+import { type Hint, type HintId, renderHints } from '../hint-shaping.js'
+import { type EnvelopeMask, type EnvelopeMaskField, EnvelopeMaskFields } from '../Mask.js'
 import {
   DecideHintsCommand,
   offerRecoveryHints,
@@ -59,7 +59,7 @@ interface RunOverrides {
 const run = (overrides: RunOverrides): DecideHintsCommand =>
   new DecideHintsCommand({
     request: new RunHintsRequest({
-      document: overrides.document ?? okDocument('pkg'),
+      document: overrides.document ?? okDocument('demo'),
       mode: overrides.mode ?? 'envelope',
       isTty: overrides.isTty ?? false,
       include: overrides.include ?? [],
@@ -69,19 +69,12 @@ const run = (overrides: RunOverrides): DecideHintsCommand =>
 
 const packlessDirectory = new DecideHintsCommand({ request: new PacklessDirectoryHintsRequest({}) })
 
-const decisions = (command: DecideHintsCommand) => Result.getOrThrow(offerRecoveryHints(command))
+const noHints: readonly Hint[] = []
 
-const hintList = (command: DecideHintsCommand) =>
-  Match.value(decisions(command)).pipe(
+const hintsOf = (command: DecideHintsCommand): readonly Hint[] =>
+  Match.value(Result.getOrThrow(offerRecoveryHints(command))).pipe(
     Match.tag('HintsOffered', ({ hints }) => hints),
-    Match.tag('NoHintsApplicable', () => []),
-    Match.exhaustive,
-  )
-
-const hintIds = (command: DecideHintsCommand): readonly HintId[] =>
-  Match.value(decisions(command)).pipe(
-    Match.tag('HintsOffered', ({ hints }) => hints.map((hint) => hint.id)),
-    Match.tag('NoHintsApplicable', () => []),
+    Match.tag('NoHintsApplicable', () => noHints),
     Match.exhaustive,
   )
 
@@ -106,13 +99,13 @@ interface SituationSpec {
   readonly hints: readonly HintId[]
 }
 
-const situationSpecs: Readonly<Record<Situation, SituationSpec>> = {
+const situationTable: Readonly<Record<Situation, SituationSpec>> = {
   tty: { state: run({ isTty: true }), hints: [] },
   quiet: { state: run({ mode: 'quiet' }), hints: [] },
   explicitTable: { state: run({ mode: 'table' }), hints: [] },
-  untyped: { state: run({ document: untypedDocument('pkg') }), hints: ['untyped'] },
+  untyped: { state: run({ document: untypedDocument('demo') }), hints: ['untyped'] },
   untypedWithInclude: {
-    state: run({ document: untypedDocument('pkg'), include: ['entrypoints'] }),
+    state: run({ document: untypedDocument('demo'), include: ['entrypoints'] }),
     hints: ['untyped'],
   },
   expansion: { state: run({}), hints: ['expansion'] },
@@ -123,6 +116,8 @@ const situationSpecs: Readonly<Record<Situation, SituationSpec>> = {
   directoryWithoutPack: { state: packlessDirectory, hints: ['directoryWithoutPack'] },
 }
 
+const expansionSituations = ['expansion', 'partialMask'] as const
+
 const renderModes = ['envelope', 'table', 'table-flipped', 'ascii', 'quiet'] as const satisfies readonly RenderMode[]
 
 const maskValue: fc.Arbitrary<EnvelopeMask> = fc.record({
@@ -132,15 +127,7 @@ const maskValue: fc.Arbitrary<EnvelopeMask> = fc.record({
   traces: fc.boolean(),
 })
 
-const includedFields: fc.Arbitrary<EnvelopeMaskField[]> = fc.uniqueArray(
-  fc.constantFrom(...EnvelopeMaskFields),
-  { maxLength: 4 },
-)
-
-const enumeratedInclude: fc.Arbitrary<string[]> = fc.array(
-  fc.constantFrom(...EnvelopeMaskFields),
-  { maxLength: 4 },
-)
+const includeTokens: fc.Arbitrary<string[]> = fc.array(fc.constantFrom(...EnvelopeMaskFields), { maxLength: 4 })
 
 const hostileName: fc.Arbitrary<string> = fc
   .tuple(
@@ -162,7 +149,7 @@ const hostileRunInputs: fc.Arbitrary<HostileRunInputs> = fc.record({
   packageName: hostileName,
   untyped: fc.boolean(),
   mode: fc.constantFrom(...renderModes),
-  include: enumeratedInclude,
+  include: includeTokens,
   mask: maskValue,
 })
 
@@ -184,48 +171,60 @@ const runNamed = (inputs: HostileRunInputs, packageName: string): DecideHintsCom
 const flagTokensIn = (text: string): readonly string[] =>
   [...text.matchAll(/--[a-z][a-z-]*/g)].map((match) => match[0].slice(2))
 
-const includeArg = (fields: readonly string[]): readonly string[] =>
-  Match.value(fields).pipe(
-    Match.when((value) => value.length === 0, () => []),
-    Match.orElse((value) => [value.join(', ')]),
-  )
-
 const nonFieldToken: fc.Arbitrary<string> = fc.oneof(
   fc
-    .tuple(
-      fc.constantFrom(...EnvelopeMaskFields),
-      fc.stringMatching(/^[A-Za-z0-9.-]{1,4}$/),
-    )
+    .tuple(fc.constantFrom(...EnvelopeMaskFields), fc.stringMatching(/^[A-Za-z0-9.-]{1,4}$/))
     .map(([field, suffix]) => `${field}${suffix}`),
   fc.constantFrom('table', 'json', 'ascii', '-f', ''),
 )
 
-it.prop('∀situation_Hints_=table', [fc.constantFrom(...situationNames)], ([situation]) => {
-  const spec = situationSpecs[situation]
-  return JSON.stringify(hintIds(spec.state)) === JSON.stringify(spec.hints)
+const includeList: fc.Arbitrary<readonly EnvelopeMaskField[]> = fc.array(
+  fc.constantFrom(...EnvelopeMaskFields),
+  { maxLength: 4 },
+)
+
+const joinedTokens = (fields: readonly EnvelopeMaskField[]): readonly string[] =>
+  fields.length === 0 ? [] : [fields.join(',')]
+
+it.prop('∀situation_Hints_=authoredTable', [fc.constantFrom(...situationNames)], ([situation]) => {
+  const spec = situationTable[situation]
+  const ids = hintsOf(spec.state).map((hint) => hint.id)
+  return ids.length === spec.hints.length && ids.every((id, index) => id === spec.hints[index])
 })
 
-it.prop('∀hostilePackageName_Hints_=nameIndependent∧∌ESC', [hostileRunInputs], ([inputs]) => {
-  const hostile = hintList(runNamed(inputs, inputs.packageName))
-  const text = renderHints(hostile)
-  return JSON.stringify(hintIds(runNamed(inputs, inputs.packageName))) ===
-      JSON.stringify(hintIds(runNamed(inputs, 'benign-package'))) &&
+it.prop('∀inputs_Hints_=nameIndependent∧∌ESC', [hostileRunInputs], ([inputs]) => {
+  const hostile = hintsOf(runNamed(inputs, inputs.packageName))
+  const benign = hintsOf(runNamed(inputs, 'benign-package'))
+  const rendered = renderHints(hostile)
+  return hostile.length === benign.length &&
+    hostile.every((hint, index) => hint.id === benign[index]?.id && hint.text === benign[index]?.text) &&
     hostile.every((hint) => !hint.text.includes(inputs.packageName)) &&
-    !text.includes(inputs.packageName) &&
-    !text.includes(escape)
-})
-
-it.prop('∀hintId_HintFlags_∈CliInputSchema', [fc.constantFrom(...HintIds)], ([id]) => {
-  const texts = situationNames
-    .flatMap((situation) => hintList(situationSpecs[situation].state))
-    .filter((hint) => hint.id === id)
-    .map((hint) => hint.text)
-  return texts.length > 0 &&
-    texts.every((text) => flagTokensIn(text).every((flag) => flag in CliInputSchema.fields))
+    !rendered.includes(inputs.packageName) &&
+    !rendered.includes(escape)
 })
 
 it.prop(
-  '∀token_HintsIncludeRefusal_⊥Hints',
+  '∀situation_HintFlagTokens_∈CliInputSchema',
+  [fc.constantFrom(...situationNames)],
+  ([situation]) =>
+    hintsOf(situationTable[situation].state).every((hint) =>
+      flagTokensIn(hint.text).every((flag) => flag in CliInputSchema.fields)
+    ),
+)
+
+it.prop(
+  '∀situation_ExpansionHint_∋EveryMaskField',
+  [fc.constantFrom(...expansionSituations)],
+  ([situation]) => {
+    const texts = hintsOf(situationTable[situation].state).map((hint) => hint.text)
+    return texts.length > 0 &&
+      texts.some((text) => text.includes('--include')) &&
+      EnvelopeMaskFields.every((field) => texts.some((text) => text.includes(field)))
+  },
+)
+
+it.prop(
+  '∀token_UnknownIncludeToken_⊥Hints',
   [nonFieldToken],
   ([token]) =>
     Result.match(offerRecoveryHints(run({ include: [token] })), {
@@ -236,21 +235,16 @@ it.prop(
     }),
 )
 
-it.prop('∀fields_DecodeIncludeMask_=include', [includedFields], ([fields]) => {
-  const decided = decodeIncludeMask(includeArg(fields))
-  return Result.isSuccess(decided) &&
-    EnvelopeMaskFields.every((field) => decided.success[field] === fields.includes(field))
-})
-
-it.prop('∀fields_RepeatedInclude_=union', [includedFields, includedFields], ([first, second]) => {
-  const decided = decodeIncludeMask([...includeArg(first), ...includeArg(second)])
-  const requested = [...first, ...second]
-  return Result.isSuccess(decided) &&
-    EnvelopeMaskFields.every((field) => decided.success[field] === requested.includes(field))
-})
-
-it.prop('∀token_DecodeIncludeMaskRefusal_⊥', [nonFieldToken], ([token]) => {
-  const decided = decodeIncludeMask([token])
-  return Result.isFailure(decided) &&
-    EnvelopeMaskFields.every((field) => decided.failure.recovery.includes(field))
+it.prop('∀fields_JoinedAndPaddedIncludeTokens_=Accepted', [includeList], ([fields]) => {
+  const joined = joinedTokens(fields)
+  const padded = joined.map((token) => ` ${token} `)
+  const expected: readonly HintId[] = fields.length > 0 ? [] : ['expansion']
+  const joinedIds = hintsOf(run({ include: joined })).map((hint) => hint.id)
+  const paddedIds = hintsOf(run({ include: padded })).map((hint) => hint.id)
+  return Result.isSuccess(offerRecoveryHints(run({ include: joined }))) &&
+    Result.isSuccess(offerRecoveryHints(run({ include: padded }))) &&
+    joinedIds.length === expected.length &&
+    joinedIds.every((id, index) => id === expected[index]) &&
+    paddedIds.length === expected.length &&
+    paddedIds.every((id, index) => id === expected[index])
 })
