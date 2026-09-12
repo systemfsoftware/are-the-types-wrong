@@ -1,0 +1,54 @@
+{
+  "pattern": "minimal-flag-analyze",
+  "lesson": "One positional fixture path and no flags: the non-TTY default is a compact status-tagged envelope on stdout and the mask hint on stderr. The untyped fixture proves that the status discriminator, not the exit code, tells typed from untyped.",
+  "invocations": [
+    {
+      "argv": ["fixtures/typed.tgz"],
+      "baseline": "node ../../arethetypeswrong-cli/dist/main.mjs fixtures/typed.tgz",
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "json": true,
+          "equals": {
+            "status": "ok",
+            "packageName": "named-exports",
+            "packageVersion": "1.0.0",
+            "types.kind": "included",
+            "problems.0.kind": "NamedExports",
+            "problems.0.isMissingAllNamed": true,
+            "problemCounts.NamedExports": 1
+          },
+          "present": ["problems"],
+          "absent": ["entrypoints", "buildTools", "programInfo"]
+        },
+        "stderr": {
+          "empty": false,
+          "json": false,
+          "contains": ["--include entrypoints, buildTools, programInfo, traces"]
+        }
+      }
+    },
+    {
+      "argv": ["fixtures/untyped.tgz"],
+      "baseline": "node ../../arethetypeswrong-cli/dist/main.mjs fixtures/untyped.tgz",
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "json": true,
+          "equals": {
+            "status": "untyped",
+            "packageName": "types-companion",
+            "packageVersion": "1.0.0",
+            "types": false
+          },
+          "absent": ["problems", "problemCounts", "entrypoints", "buildTools", "programInfo"]
+        },
+        "stderr": {
+          "empty": false,
+          "json": false,
+          "contains": ["status discriminator"]
+        }
+      }
+    }
+  ]
+}

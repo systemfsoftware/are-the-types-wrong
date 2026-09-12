@@ -1,0 +1,19 @@
+{
+  "pattern": "tty-table-parse",
+  "lesson": "-f table through a pipe is human output, so never parse it; the machine contract is the default envelope. This transcript asserts the table is NOT a JSON document and that human mode carries no stderr hints.",
+  "invocations": [
+    {
+      "argv": ["-f", "table", "fixtures/typed.tgz"],
+      "baseline": "node ../../arethetypeswrong-cli/dist/main.mjs -f table fixtures/typed.tgz",
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "json": false,
+          "empty": false,
+          "contains": ["NamedExports: 1", "Entrypoint"]
+        },
+        "stderr": { "empty": true }
+      }
+    }
+  ]
+}

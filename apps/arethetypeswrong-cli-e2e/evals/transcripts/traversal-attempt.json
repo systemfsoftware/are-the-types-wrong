@@ -1,0 +1,57 @@
+{
+  "pattern": "traversal-attempt",
+  "lesson": "A field-selection query on a bare name, an escaped path, and a tarball-suffixed escape each refuse with a typed stderr document, exit 1, empty stdout, and no registry or filesystem read of the escaped target.",
+  "invocations": [
+    {
+      "argv": ["pkg?fields=name"],
+      "baseline": null,
+      "expect": {
+        "exitCode": 1,
+        "stdout": { "empty": true },
+        "stderr": {
+          "json": true,
+          "equals": {
+            "status": "error",
+            "kind": "InvalidPackageSpec"
+          },
+          "contains": ["URL query or fragment marker"],
+          "present": ["message", "recovery"]
+        }
+      }
+    },
+    {
+      "argv": ["../../etc/passwd"],
+      "baseline": null,
+      "expect": {
+        "exitCode": 1,
+        "stdout": { "empty": true },
+        "stderr": {
+          "json": true,
+          "equals": {
+            "status": "error",
+            "kind": "TargetNotPackable"
+          },
+          "contains": ["not a package tarball this tool can read"],
+          "present": ["message", "recovery"]
+        }
+      }
+    },
+    {
+      "argv": ["../evil.tgz"],
+      "baseline": null,
+      "expect": {
+        "exitCode": 1,
+        "stdout": { "empty": true },
+        "stderr": {
+          "json": true,
+          "equals": {
+            "status": "error",
+            "kind": "TargetNotPackable"
+          },
+          "contains": ["not a package tarball this tool can read"],
+          "present": ["message", "recovery"]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "pattern": "schema-first-discovery",
+  "lesson": "Read the CLI's own input and envelope schema with `attw schema` before choosing flags; the analyze that follows then asserts exactly the required keys the discovery document named.",
+  "invocations": [
+    {
+      "argv": ["schema"],
+      "baseline": null,
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "json": true,
+          "equals": {
+            "input.dialect": "draft-2020-12",
+            "envelope.dialect": "draft-2020-12",
+            "envelope.schema.anyOf.0.properties.status.enum.0": "ok",
+            "envelope.schema.anyOf.1.properties.status.enum.0": "untyped",
+            "input.schema.properties.format.enum": ["auto", "table", "table-flipped", "ascii", "json"],
+            "input.schema.properties.include.type": "array"
+          }
+        },
+        "stderr": { "empty": true }
+      }
+    },
+    {
+      "argv": ["fixtures/typed.tgz"],
+      "baseline": "node ../../arethetypeswrong-cli/dist/main.mjs fixtures/typed.tgz",
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "json": true,
+          "equals": {
+            "status": "ok",
+            "types.kind": "included"
+          },
+          "present": ["status", "packageName", "packageVersion", "types", "problems", "problemCounts"],
+          "absent": ["entrypoints", "buildTools", "programInfo"]
+        },
+        "stderr": {
+          "empty": false,
+          "json": false,
+          "contains": ["--include"]
+        }
+      }
+    }
+  ]
+}
