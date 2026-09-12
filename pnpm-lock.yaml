@@ -55,6 +55,21 @@ catalogs:
     '@systemfsoftware/oxlint-plugin-effect-dmmf':
       specifier: ^5.3.0
       version: 5.3.0
+    '@systemfsoftware/stryker-js-cli':
+      specifier: ^6.0.0
+      version: 6.0.0
+    '@systemfsoftware/stryker-js-typescript-checker':
+      specifier: ^5.0.0
+      version: 5.0.1
+    '@systemfsoftware/stryker-js-vitest-runner':
+      specifier: ^4.0.0
+      version: 4.0.1
+    '@systemfsoftware/stryker-plugins':
+      specifier: ^3.0.0
+      version: 3.0.1
+    '@systemfsoftware/stryker-test-contribution':
+      specifier: ^2.0.0
+      version: 2.0.1
     '@systemfsoftware/tsconfig':
       specifier: ^1.3.3
       version: 1.3.3
@@ -186,6 +201,21 @@ importers:
       '@systemfsoftware/oxlint-plugin-effect-dmmf':
         specifier: 'catalog:'
         version: 5.3.0(effect@4.0.0-rc.112)(oxlint@1.82.0(oxlint-tsgolint@7.0.2001))(typescript@7.0.2)
+      '@systemfsoftware/stryker-js-cli':
+        specifier: 'catalog:'
+        version: 6.0.0(redis@6.2.1)
+      '@systemfsoftware/stryker-js-typescript-checker':
+        specifier: 'catalog:'
+        version: 5.0.1
+      '@systemfsoftware/stryker-js-vitest-runner':
+        specifier: 'catalog:'
+        version: 4.0.1(effect@4.0.0-rc.112)(vitest@4.1.11)
+      '@systemfsoftware/stryker-plugins':
+        specifier: 'catalog:'
+        version: 3.0.1(@systemfsoftware/stryker-js@3.0.0)(effect@4.0.0-rc.112)(typescript@7.0.2)
+      '@systemfsoftware/stryker-test-contribution':
+        specifier: 'catalog:'
+        version: 2.0.1(effect@4.0.0-rc.112)
       '@systemfsoftware/tsconfig':
         specifier: 'catalog:'
         version: 1.3.3
@@ -292,6 +322,21 @@ importers:
       '@systemfsoftware/effect-schema-vite':
         specifier: 'catalog:'
         version: 2.0.3(@systemfsoftware/effect-schema-law@2.0.2(@effect/vitest@4.0.0-rc.112(effect@4.0.0-rc.112)(vitest@4.1.11))(effect@4.0.0-rc.112)(vitest@4.1.11))(effect@4.0.0-rc.112)(vite@8.2.2(@types/node@24.13.3)(jiti@2.6.1)(yaml@2.9.0))(vitest@4.1.11)
+      '@systemfsoftware/stryker-js-cli':
+        specifier: 'catalog:'
+        version: 6.0.0(redis@6.2.1)
+      '@systemfsoftware/stryker-js-typescript-checker':
+        specifier: 'catalog:'
+        version: 5.0.1
+      '@systemfsoftware/stryker-js-vitest-runner':
+        specifier: 'catalog:'
+        version: 4.0.1(effect@4.0.0-rc.112)(vitest@4.1.11)
+      '@systemfsoftware/stryker-plugins':
+        specifier: 'catalog:'
+        version: 3.0.1(@systemfsoftware/stryker-js@3.0.0)(effect@4.0.0-rc.112)(typescript@6.0.3)
+      '@systemfsoftware/stryker-test-contribution':
+        specifier: 'catalog:'
+        version: 2.0.1(effect@4.0.0-rc.112)
       '@systemfsoftware/tsconfig':
         specifier: 'catalog:'
         version: 1.3.3
@@ -503,6 +548,10 @@ packages:
   '@emnapi/wasi-threads@1.2.2':
     resolution: {integrity: sha512-c95qOXkHdydNKhscBTebqEC1CVAZpyqOfVfBzQ1qgzyl3gfeldUjIggDbIZgDKsHLgnsM+igH7TJ/eAasaVuMA==}
 
+  '@eslint-community/regexpp@4.12.2':
+    resolution: {integrity: sha512-EriSTlt5OC9/7SXkRSCAhfSxxoSUgBm33OH+IkwbdpgoqsSsUg7y3uh+IICI/Qg4BBWr3U2i39RpmycbxMq4ew==}
+    engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
+
   '@grpc/grpc-js@1.14.4':
     resolution: {integrity: sha512-k9Dj3DV/itK9D06Y8f190Qgop7/Ui+D0njFV3LHMPwPT75DpXLQohE9Wmz0QElrJnzsjB7KPWiKJbOl7IPDArQ==}
     engines: {node: '>=12.10.0'}
@@ -697,6 +746,10 @@ packages:
       '@emnapi/core': ^1.7.1 || ^2.0.0-alpha.4
       '@emnapi/runtime': ^1.7.1 || ^2.0.0-alpha.4
 
+  '@noble/hashes@1.8.0':
+    resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
+    engines: {node: ^14.21.3 || >=16}
+
   '@oxc-parser/binding-android-arm-eabi@0.140.0':
     resolution: {integrity: sha512-ZfjDZ422mo7eo3b3VltqNsV9kmv1qt/sPEAMSl64iOSwhVfd0eIZ9LB79Mbs1xYXJnk7WSROwzBCKDIiVxPTvQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -826,9 +879,6 @@ packages:
 
   '@oxc-project/types@0.140.0':
     resolution: {integrity: sha512-h5LUOzGArYemnW1NMz/DuuQhBi96J6JL2Bk8zE4kvqxB5Sg3jxmCiH4uyOWHDkiKSt5vWlG4FIwCR/DbstcNRQ==}
-
-  '@oxc-project/types@0.148.0':
-    resolution: {integrity: sha512-Nm4s/jB+4FpFsPhWGEC4h7rzksesmtnMXomo6rCMcg/b8zLQuOziRgkCS1fxDCXOlJB/6Q8oABOZ/OP6RIPj9A==}
 
   '@oxc-project/types@0.149.0':
     resolution: {integrity: sha512-Efcc+iF0j3Bf67YjEqIqWXbX5XddXoK/Mw4K1/JuXwRCZ8N16VR7iT23nlCc9XrveFVh/E5Rqs2StT0V8v9LdA==}
@@ -1059,22 +1109,10 @@ packages:
     peerDependencies:
       '@redis/client': ^6.2.1
 
-  '@rolldown/binding-android-arm-eabi@1.2.7':
-    resolution: {integrity: sha512-EypzgnYCwyVY4NDHKzGmNJT5b+XaQEBniHxsMdeIQLB/tcCzZnhqrzHpZFbX9iaxx+5RiB8caATBtfvZP7zVxQ==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [arm]
-    os: [android]
-
   '@rolldown/binding-android-arm-eabi@1.2.8':
     resolution: {integrity: sha512-tN5aztYkKCte4i5SIrrz5yK/HMjEuCqCSCJa418jOV8tZ1cBY3YF2otxB1ktPxzsLA1BeTqwapK0bfjxNvHJVw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm]
-    os: [android]
-
-  '@rolldown/binding-android-arm64@1.2.7':
-    resolution: {integrity: sha512-l17HE9EweWaqJZhuUuNBN/FzM62xw+DECVnJyvMsxn8vJFAGLy5QfLDoYAcronkAN8VxKZHezDpulHDPx95vFw==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [arm64]
     os: [android]
 
   '@rolldown/binding-android-arm64@1.2.8':
@@ -1083,22 +1121,10 @@ packages:
     cpu: [arm64]
     os: [android]
 
-  '@rolldown/binding-darwin-arm64@1.2.7':
-    resolution: {integrity: sha512-8ED8ELFvHXc6OCETIn4gXObPiaR6bckM/ipXtbzlPVDRMBfEGjCKgO90F9YtfdpDatVx/ZQw7aZ1vUMf/+T3Mw==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [arm64]
-    os: [darwin]
-
   '@rolldown/binding-darwin-arm64@1.2.8':
     resolution: {integrity: sha512-PCSDQGXD2IyTEFrcgPyBM8jJuGmrbCMuoIOXdbEGVemruKACXoLQJrb+A45Z0L5t1RQkdfJprAYPkikbh7dzdA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
-    os: [darwin]
-
-  '@rolldown/binding-darwin-x64@1.2.7':
-    resolution: {integrity: sha512-/WPripjtiAIZ2tWY7ddijORT0Ujg87wxWW/qcoFVCKAWVDPhtY0xr7Dj0M3GyNGz60jGwTElhro/mkF9dT7dDQ==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [x64]
     os: [darwin]
 
   '@rolldown/binding-darwin-x64@1.2.8':
@@ -1107,36 +1133,17 @@ packages:
     cpu: [x64]
     os: [darwin]
 
-  '@rolldown/binding-freebsd-x64@1.2.7':
-    resolution: {integrity: sha512-14DI4NcqpvbICxSnGLx3PmtDaWqRP/KGSGb6C+JLLVPeZRl6dKdHba3pGsqT3vpdTqhEYIPG0MMQ8c0xYqoJxA==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [x64]
-    os: [freebsd]
-
   '@rolldown/binding-freebsd-x64@1.2.8':
     resolution: {integrity: sha512-DjszaTEVogPqA5bYzsEeqDCQxbcp2fexQwKcRspYji2yzR68fCf+e4fx6kBSRDwX5/brZaHw/hWS9+A/+/w9sQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [freebsd]
 
-  '@rolldown/binding-linux-arm-gnueabihf@1.2.7':
-    resolution: {integrity: sha512-bxrWIRvHWQvbJwi+VIie/kDJmQxcNE6xxWwZdqF/ExVAigtHkv54WTLQPb+QsZdnFy18fg7JPfWGL0RH6vwIlQ==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [arm]
-    os: [linux]
-
   '@rolldown/binding-linux-arm-gnueabihf@1.2.8':
     resolution: {integrity: sha512-zmwa7FTmdzB6aaEEuuls18H6Ap5JmJPSoPTuXixeJZV6tG40SyLkApQtz1g8ptZtiEKqj9OM0oNLPh1AgvE31Q==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm]
     os: [linux]
-
-  '@rolldown/binding-linux-arm64-gnu@1.2.7':
-    resolution: {integrity: sha512-toOY2BChBZyuxU7OYX6Tn389di4IzAqPTycVcci0O7FSfBqzRB3RZn+K5Is6ANf4tmgRd/K1yZTsNTXbkXsnLg==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [arm64]
-    os: [linux]
-    libc: [glibc]
 
   '@rolldown/binding-linux-arm64-gnu@1.2.8':
     resolution: {integrity: sha512-KdYQDPHwJVnbFwdTGMgxsI9SqblBlz6STGM+w1We/d5B8OWWidYH0MwkU/uA1wM5fIpO2MkOVxXrNzzuZhw9ew==}
@@ -1145,13 +1152,6 @@ packages:
     os: [linux]
     libc: [glibc]
 
-  '@rolldown/binding-linux-arm64-musl@1.2.7':
-    resolution: {integrity: sha512-lAIXTH/aiLRLxsTgQvfhjo4K1ydWIp00+V0voOr9beb/9ZmkUFrSIb03dXNFRgMNvkE6oGsF10ioQ6UsI+vS5Q==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [arm64]
-    os: [linux]
-    libc: [musl]
-
   '@rolldown/binding-linux-arm64-musl@1.2.8':
     resolution: {integrity: sha512-jFJTifHnNPY+yzOoNZQfSIysrVyXzEQPhPnOUjmD1bcQGHH6s7c8cViKWar8YplQImE5N9JRqMCLrM2CdxOrZA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1159,24 +1159,10 @@ packages:
     os: [linux]
     libc: [musl]
 
-  '@rolldown/binding-linux-ppc64-gnu@1.2.7':
-    resolution: {integrity: sha512-kdnwS28Pkenp/mZMRwjXXXwxQ7pIsm+bF919LUK93BOyhcLsrVKdP2p9fxpiPNPAbNuch8ypQt0pm2P2LYCAGg==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [ppc64]
-    os: [linux]
-    libc: [glibc]
-
   '@rolldown/binding-linux-ppc64-gnu@1.2.8':
     resolution: {integrity: sha512-FhiOziBDWPBjbcmRzfLyIJnaP7AVMFXT7YCXPjXxj7wKU3vx24RjrCNN/zjvVa+N2vVoHJwCoUBvsrN/DG3zIA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [ppc64]
-    os: [linux]
-    libc: [glibc]
-
-  '@rolldown/binding-linux-s390x-gnu@1.2.7':
-    resolution: {integrity: sha512-516OdsyLdr5E65paF3yBF55t8mfm9+gmtCsK3xI7XKXIT7EfRlHhxL8K/NR6Hu8BWSgF5+1w74lTL0+nxcc8Qw==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [s390x]
     os: [linux]
     libc: [glibc]
 
@@ -1187,26 +1173,12 @@ packages:
     os: [linux]
     libc: [glibc]
 
-  '@rolldown/binding-linux-x64-gnu@1.2.7':
-    resolution: {integrity: sha512-r8/z8n7GFaYRln3xmP1Cxy0HH/HLM0uBUPkEuSVEfKGDA89M0FsZRZJRSwe/tJjRx+fpH/gjorfhB8tmEbSFLA==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [x64]
-    os: [linux]
-    libc: [glibc]
-
   '@rolldown/binding-linux-x64-gnu@1.2.8':
     resolution: {integrity: sha512-H9tRr5ibfXFVLxbPOseVewewFpl28zcEdjRDt2FTUZU7odxP0gEv1ki4/kGmcGOh78oRwZuuQllGLZ9zTJp84g==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
-
-  '@rolldown/binding-linux-x64-musl@1.2.7':
-    resolution: {integrity: sha512-pAsE8iiDxUg1xBqdhrTfg45AVDVpirjz00sblEYClGNNcMnDb+e8beQgqIAw6LvauX/APvgxUnwrgun/YYGBhw==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [x64]
-    os: [linux]
-    libc: [musl]
 
   '@rolldown/binding-linux-x64-musl@1.2.8':
     resolution: {integrity: sha512-UefiqfM3D6IVNlZ8tSGs9+Ejjud2T+oxO0IHADU45Y+lyEjD2dVFyZHbkfX0LUb5Zugo/oIv1eCO/KVYhgYJYA==}
@@ -1215,34 +1187,16 @@ packages:
     os: [linux]
     libc: [musl]
 
-  '@rolldown/binding-openharmony-arm64@1.2.7':
-    resolution: {integrity: sha512-lTcIYmmnQQA8Or/2DatS6oSqcdLHvendjS+zLu+FwgToynWMRSmQdpM65fTANJgIS4mjbMOo5KT2lnT9SAb96w==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [arm64]
-    os: [openharmony]
-
   '@rolldown/binding-openharmony-arm64@1.2.8':
     resolution: {integrity: sha512-637Ke4kWSy6rp9cxQ9gMOXlxPgIw/c1beASV4M//3+9I4uwBVOOl74G+e3zyU3u19U7RkRl/HuewixZ/Z6+Rjg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [openharmony]
 
-  '@rolldown/binding-win32-arm64-msvc@1.2.7':
-    resolution: {integrity: sha512-e3Gu3WxbNk/UqQhxqU7YIYO+9ZBvWNz3U+h/qRFosscMFzdRPbXYSaSWgSnklv2fz1TgzBTcti2z35c/7irsHw==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [arm64]
-    os: [win32]
-
   '@rolldown/binding-win32-arm64-msvc@1.2.8':
     resolution: {integrity: sha512-xWBkPOF1Q9k/Gv1nQXnVdLxKu74jXppuOM4Z3mnypVUJJJwLsMl7hNJGRAUJoG8A5MgOI1ACKM+wBFxSJzKy4A==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
-    os: [win32]
-
-  '@rolldown/binding-win32-x64-msvc@1.2.7':
-    resolution: {integrity: sha512-W/jg5qoRSqjsEv0+dZi4e687mcHqmVuU0P4fK6qS/xjetW2Gmc1W8j//z5nAeNcC8Ttm0hV46IjcYeuVwYhuiw==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [x64]
     os: [win32]
 
   '@rolldown/binding-win32-x64-msvc@1.2.8':
@@ -1381,6 +1335,61 @@ packages:
     peerDependencies:
       effect: ^4.0.0-rc.112
       typescript: '>=5.0.0'
+
+  '@systemfsoftware/stryker-js-cli@6.0.0':
+    resolution: {integrity: sha512-wa62wIrbhjK/89yCe62VYZw7DpwM8datc5JjPrQkep9UMLqpXrUA6R8tJ+RxPAAJh5FWoqnYlEIj5h3aUixI+Q==}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
+
+  '@systemfsoftware/stryker-js-engine@1.0.0':
+    resolution: {integrity: sha512-Mh4xL341/pYKxDoPbK+fEUrM1wZGVY04t8SC9Sc+12duq2EPPbcmqbIX9SAWCa4NgoTI7nJsasHYK0+QglsTkg==}
+    peerDependencies:
+      effect: ^4.0.0-rc.112
+
+  '@systemfsoftware/stryker-js-html-reporter@2.0.0':
+    resolution: {integrity: sha512-bC4CLH+9REFi1v6gdRjunW6OYe13dlqY7E+13OkL8JME6rExHhfiO5lefeDmHOPK/HH+C+jLsnoYtICj5ktOrQ==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      effect: ^4.0.0-rc.112
+
+  '@systemfsoftware/stryker-js-instrumenter@5.0.1':
+    resolution: {integrity: sha512-EeImWNze8aKM6EAVennQKPTovISWP/mAjkNWgMxCpbB4qmz+Ofx7rtHzLvWUSA//J303ORVaj4ZrAHqnhb3gcg==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      svelte: '>=4.0.0'
+    peerDependenciesMeta:
+      svelte:
+        optional: true
+
+  '@systemfsoftware/stryker-js-typescript-checker@5.0.1':
+    resolution: {integrity: sha512-CczigWT72NvI/fi++9jTIwUAsfMWUWepq3oOXQzxBDNFrA2Bo3T9rjAfVWbha5MVGSVWP80bDbedkUJJmdVyyA==}
+
+  '@systemfsoftware/stryker-js-vitest-runner@4.0.1':
+    resolution: {integrity: sha512-tiBA+TkVIjhAgtazJQjizUprwmxYOj/S/qE5Vku0TdPpT8ZH+O2CGOPikSJzDlynt4zUclcIcxjCzgYDtk/OWQ==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      effect: 4.0.0-rc.112
+      vitest: '>=2.0.0'
+
+  '@systemfsoftware/stryker-js@2.0.0':
+    resolution: {integrity: sha512-xjM4FpemGxxy+Ax50qarUK1mvi3B1cO4xul1gj6QTnY7qFYvGo/rfM/xHv3bIh2eCwDJEYCWmxBvdVv2IyCMsw==}
+    engines: {node: '>=20.0.0'}
+
+  '@systemfsoftware/stryker-js@3.0.0':
+    resolution: {integrity: sha512-GCH44ptclOHAc3QFTFcLv/Cpq5gpdXkApPk+GWY5Uiwg/yVglz5VI4ybPSZVAV8ZeXsLVvyITJy5TbRfkpDJrw==}
+    engines: {node: '>=20.0.0'}
+
+  '@systemfsoftware/stryker-plugins@3.0.1':
+    resolution: {integrity: sha512-u9s5H7mQ0WYCYwVlp4J8MW+unBVCF5mEYh+S7Dz6kpK04OkYsl0uP9ALZI0H7BIVKqanGrFXIkgrz5p5iAQfmg==}
+    peerDependencies:
+      '@systemfsoftware/stryker-js': ^3.0.0
+      effect: 4.0.0-rc.112
+      typescript: '>=5.0.0'
+
+  '@systemfsoftware/stryker-test-contribution@2.0.1':
+    resolution: {integrity: sha512-+Wg9i1jPwPSMQwvWKujKyPE3UpITp6YSbRJ8JOw+qgTnUdjSyN7cRn1MJ0wGxJlR5NAWWG04x130BRffPTfqSg==}
+    peerDependencies:
+      effect: 4.0.0-rc.112
 
   '@systemfsoftware/tsconfig@1.3.3':
     resolution: {integrity: sha512-k3VnkwhSo07LJ4l0rIqgiW81ELZXDtWoJxs/Ymk1UM6vpq1dAXWzb4TTDPY90rkyOtGKJYKRcaR9LpkzIiOBdA==}
@@ -1757,6 +1766,10 @@ packages:
   ajv@8.20.0:
     resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
 
+  angular-html-parser@10.4.0:
+    resolution: {integrity: sha512-++nLNyZwRfHqFh7akH5Gw/JYizoFlMRz0KRigfwfsLqV8ZqlcVRb1LkPEWdYvEKDnbktknM2J4BXaYUGrQZPww==}
+    engines: {node: '>= 14'}
+
   ansi-regex@5.0.1:
     resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
     engines: {node: '>=8'}
@@ -2002,6 +2015,9 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
+
+  diff-match-patch@1.0.5:
+    resolution: {integrity: sha512-IayShXAgj/QMXgB0IWmKx+rOPuGMhqm5w6jvFxmVenXKIzRqTAAsbBPT3kWQeGANj3jGgvcvv4yK6SxqYmikgw==}
 
   docker-compose@1.4.2:
     resolution: {integrity: sha512-rPHigTKGaEHpkUmfd69QgaOp+Os5vGJwG/Ry8lcr8W/382AmI+z/D7qoa9BybKIkqNppaIbs8RYeHSevdQjWww==}
@@ -2406,6 +2422,15 @@ packages:
   msgpackr@2.1.0:
     resolution: {integrity: sha512-p/pBCVO63CsvvpkomUnNNag6+n38rULuDA6HHe70o2gtC8ODI52foF/4ko2qQcp6OiErJXTmrZeXmsGGHsIQNQ==}
 
+  mutation-testing-elements@3.7.3:
+    resolution: {integrity: sha512-SMeIPxngJpfjfNYctFpYQQtlBlZaVO0aoB3FKdwrI8Ee/2bkyUuCZzAOCLv1U9fnmfA37dPFq0Owduoxs2XgGQ==}
+
+  mutation-testing-metrics@3.7.3:
+    resolution: {integrity: sha512-B8QrP0ZomErzTPNlhrzKWPNBln+3afwBZPHv0Q7N8wZZTYxMptzb/Gdm3ExXVmioVYrtZAtsDs7W/T/b2AixOQ==}
+
+  mutation-testing-report-schema@3.7.3:
+    resolution: {integrity: sha512-BHm3MYq+ckO+t5CtlG8zpqxc75rdJCkxVlE+fGuGJM3F7tNCQ/OW2N+TQVHN3BHsYa84+BFc6g3AwDYkUsw2MA==}
+
   nan@2.28.0:
     resolution: {integrity: sha512-fTsDz99OTq2sVePhGdp4qQhggZFtKr64ZNVyVajRKtMOkJxYekplBh577PiJB12v/D3s2E5cGtOI45LWp6rnLQ==}
 
@@ -2578,11 +2603,6 @@ packages:
         optional: true
       vue-tsc:
         optional: true
-
-  rolldown@1.2.7:
-    resolution: {integrity: sha512-g0EtLvBjTUB7jhyV0S/TCup3v/XSVl45vUIGbOGU4QPiyjTenCe4mKuFvW9fEgYmS2Fo42AUssRmNuMziXdrig==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    hasBin: true
 
   rolldown@1.2.8:
     resolution: {integrity: sha512-Z67nTmhZe7anqnM/EjI392w5i/ANUinjip7QYsOyN37oayduxt3ksdX0hf5OOamkAd53BiIHfbfSzfUmzKFQqQ==}
@@ -3186,6 +3206,8 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
+  '@eslint-community/regexpp@4.12.2': {}
+
   '@grpc/grpc-js@1.14.4':
     dependencies:
       '@grpc/proto-loader': 0.8.1
@@ -3388,6 +3410,8 @@ snapshots:
       '@tybys/wasm-util': 0.10.3
     optional: true
 
+  '@noble/hashes@1.8.0': {}
+
   '@oxc-parser/binding-android-arm-eabi@0.140.0':
     optional: true
 
@@ -3453,8 +3477,6 @@ snapshots:
     optional: true
 
   '@oxc-project/types@0.140.0': {}
-
-  '@oxc-project/types@0.148.0': {}
 
   '@oxc-project/types@0.149.0': {}
 
@@ -3582,91 +3604,46 @@ snapshots:
     dependencies:
       '@redis/client': 6.2.1
 
-  '@rolldown/binding-android-arm-eabi@1.2.7':
-    optional: true
-
   '@rolldown/binding-android-arm-eabi@1.2.8':
-    optional: true
-
-  '@rolldown/binding-android-arm64@1.2.7':
     optional: true
 
   '@rolldown/binding-android-arm64@1.2.8':
     optional: true
 
-  '@rolldown/binding-darwin-arm64@1.2.7':
-    optional: true
-
   '@rolldown/binding-darwin-arm64@1.2.8':
-    optional: true
-
-  '@rolldown/binding-darwin-x64@1.2.7':
     optional: true
 
   '@rolldown/binding-darwin-x64@1.2.8':
     optional: true
 
-  '@rolldown/binding-freebsd-x64@1.2.7':
-    optional: true
-
   '@rolldown/binding-freebsd-x64@1.2.8':
-    optional: true
-
-  '@rolldown/binding-linux-arm-gnueabihf@1.2.7':
     optional: true
 
   '@rolldown/binding-linux-arm-gnueabihf@1.2.8':
     optional: true
 
-  '@rolldown/binding-linux-arm64-gnu@1.2.7':
-    optional: true
-
   '@rolldown/binding-linux-arm64-gnu@1.2.8':
-    optional: true
-
-  '@rolldown/binding-linux-arm64-musl@1.2.7':
     optional: true
 
   '@rolldown/binding-linux-arm64-musl@1.2.8':
     optional: true
 
-  '@rolldown/binding-linux-ppc64-gnu@1.2.7':
-    optional: true
-
   '@rolldown/binding-linux-ppc64-gnu@1.2.8':
-    optional: true
-
-  '@rolldown/binding-linux-s390x-gnu@1.2.7':
     optional: true
 
   '@rolldown/binding-linux-s390x-gnu@1.2.8':
     optional: true
 
-  '@rolldown/binding-linux-x64-gnu@1.2.7':
-    optional: true
-
   '@rolldown/binding-linux-x64-gnu@1.2.8':
-    optional: true
-
-  '@rolldown/binding-linux-x64-musl@1.2.7':
     optional: true
 
   '@rolldown/binding-linux-x64-musl@1.2.8':
     optional: true
 
-  '@rolldown/binding-openharmony-arm64@1.2.7':
-    optional: true
-
   '@rolldown/binding-openharmony-arm64@1.2.8':
     optional: true
 
-  '@rolldown/binding-win32-arm64-msvc@1.2.7':
-    optional: true
-
   '@rolldown/binding-win32-arm64-msvc@1.2.8':
-    optional: true
-
-  '@rolldown/binding-win32-x64-msvc@1.2.7':
     optional: true
 
   '@rolldown/binding-win32-x64-msvc@1.2.8':
@@ -3924,6 +3901,97 @@ snapshots:
       '@oxlint/plugins': 1.82.0
       effect: 4.0.0-rc.112
       typescript: 7.0.2
+
+  '@systemfsoftware/stryker-js-cli@6.0.0(redis@6.2.1)':
+    dependencies:
+      '@effect/platform-node': 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1)
+      '@effect/platform-node-shared': 4.0.0-rc.112(effect@4.0.0-rc.112)
+      '@noble/hashes': 1.8.0
+      '@systemfsoftware/effect-cell-types': 6.0.1(effect@4.0.0-rc.112)
+      '@systemfsoftware/stryker-js': 2.0.0
+      '@systemfsoftware/stryker-js-engine': 1.0.0(effect@4.0.0-rc.112)
+      '@systemfsoftware/stryker-js-html-reporter': 2.0.0(effect@4.0.0-rc.112)
+      effect: 4.0.0-rc.112
+    transitivePeerDependencies:
+      - bufferutil
+      - redis
+      - svelte
+      - utf-8-validate
+
+  '@systemfsoftware/stryker-js-engine@1.0.0(effect@4.0.0-rc.112)':
+    dependencies:
+      '@noble/hashes': 1.8.0
+      '@systemfsoftware/effect-cell-types': 6.0.1(effect@4.0.0-rc.112)
+      '@systemfsoftware/stryker-js': 2.0.0
+      '@systemfsoftware/stryker-js-instrumenter': 5.0.1
+      diff-match-patch: 1.0.5
+      effect: 4.0.0-rc.112
+      minimatch: 10.2.6
+      mutation-testing-metrics: 3.7.3
+      mutation-testing-report-schema: 3.7.3
+    transitivePeerDependencies:
+      - svelte
+
+  '@systemfsoftware/stryker-js-html-reporter@2.0.0(effect@4.0.0-rc.112)':
+    dependencies:
+      '@systemfsoftware/effect-cell-types': 6.0.1(effect@4.0.0-rc.112)
+      '@systemfsoftware/stryker-js': 2.0.0
+      effect: 4.0.0-rc.112
+      mutation-testing-elements: 3.7.3
+      mutation-testing-metrics: 3.7.3
+      mutation-testing-report-schema: 3.7.3
+
+  '@systemfsoftware/stryker-js-instrumenter@5.0.1':
+    dependencies:
+      '@eslint-community/regexpp': 4.12.2
+      '@oxc-project/types': 0.140.0
+      '@systemfsoftware/effect-cell-types': 6.0.1(effect@4.0.0-rc.112)
+      '@systemfsoftware/stryker-js': 3.0.0
+      angular-html-parser: 10.4.0
+      effect: 4.0.0-rc.112
+      oxc-parser: 0.140.0
+
+  '@systemfsoftware/stryker-js-typescript-checker@5.0.1':
+    dependencies:
+      '@systemfsoftware/effect-cell-types': 6.0.1(effect@4.0.0-rc.112)
+      '@systemfsoftware/stryker-js': 3.0.0
+      effect: 4.0.0-rc.112
+      typescript: 7.0.2
+
+  '@systemfsoftware/stryker-js-vitest-runner@4.0.1(effect@4.0.0-rc.112)(vitest@4.1.11)':
+    dependencies:
+      '@systemfsoftware/effect-cell-types': 6.0.1(effect@4.0.0-rc.112)
+      '@systemfsoftware/stryker-js': 3.0.0
+      effect: 4.0.0-rc.112
+      vitest: 4.1.11(@types/node@24.13.3)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@24.13.3)(jiti@2.6.1)(yaml@2.9.0))
+
+  '@systemfsoftware/stryker-js@2.0.0':
+    dependencies:
+      '@systemfsoftware/effect-cell-types': 6.0.1(effect@4.0.0-rc.112)
+      effect: 4.0.0-rc.112
+      mutation-testing-report-schema: 3.7.3
+
+  '@systemfsoftware/stryker-js@3.0.0':
+    dependencies:
+      '@systemfsoftware/effect-cell-types': 6.0.1(effect@4.0.0-rc.112)
+      effect: 4.0.0-rc.112
+
+  '@systemfsoftware/stryker-plugins@3.0.1(@systemfsoftware/stryker-js@3.0.0)(effect@4.0.0-rc.112)(typescript@6.0.3)':
+    dependencies:
+      '@systemfsoftware/stryker-js': 3.0.0
+      effect: 4.0.0-rc.112
+      typescript: 6.0.3
+
+  '@systemfsoftware/stryker-plugins@3.0.1(@systemfsoftware/stryker-js@3.0.0)(effect@4.0.0-rc.112)(typescript@7.0.2)':
+    dependencies:
+      '@systemfsoftware/stryker-js': 3.0.0
+      effect: 4.0.0-rc.112
+      typescript: 7.0.2
+
+  '@systemfsoftware/stryker-test-contribution@2.0.1(effect@4.0.0-rc.112)':
+    dependencies:
+      '@systemfsoftware/stryker-js': 3.0.0
+      effect: 4.0.0-rc.112
 
   '@systemfsoftware/tsconfig@1.3.3': {}
 
@@ -4199,6 +4267,8 @@ snapshots:
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
+  angular-html-parser@10.4.0: {}
+
   ansi-regex@5.0.1: {}
 
   ansi-regex@6.3.0: {}
@@ -4426,6 +4496,8 @@ snapshots:
   defu@6.1.7: {}
 
   detect-libc@2.1.2: {}
+
+  diff-match-patch@1.0.5: {}
 
   docker-compose@1.4.2:
     dependencies:
@@ -4773,6 +4845,14 @@ snapshots:
     optionalDependencies:
       msgpackr-extract: 3.0.4
 
+  mutation-testing-elements@3.7.3: {}
+
+  mutation-testing-metrics@3.7.3:
+    dependencies:
+      mutation-testing-report-schema: 3.7.3
+
+  mutation-testing-report-schema@3.7.3: {}
+
   nan@2.28.0:
     optional: true
 
@@ -5008,27 +5088,6 @@ snapshots:
       typescript: 7.0.2
     transitivePeerDependencies:
       - oxc-resolver
-
-  rolldown@1.2.7:
-    dependencies:
-      '@oxc-project/types': 0.148.0
-      '@rolldown/pluginutils': 1.0.1
-    optionalDependencies:
-      '@rolldown/binding-android-arm-eabi': 1.2.7
-      '@rolldown/binding-android-arm64': 1.2.7
-      '@rolldown/binding-darwin-arm64': 1.2.7
-      '@rolldown/binding-darwin-x64': 1.2.7
-      '@rolldown/binding-freebsd-x64': 1.2.7
-      '@rolldown/binding-linux-arm-gnueabihf': 1.2.7
-      '@rolldown/binding-linux-arm64-gnu': 1.2.7
-      '@rolldown/binding-linux-arm64-musl': 1.2.7
-      '@rolldown/binding-linux-ppc64-gnu': 1.2.7
-      '@rolldown/binding-linux-s390x-gnu': 1.2.7
-      '@rolldown/binding-linux-x64-gnu': 1.2.7
-      '@rolldown/binding-linux-x64-musl': 1.2.7
-      '@rolldown/binding-openharmony-arm64': 1.2.7
-      '@rolldown/binding-win32-arm64-msvc': 1.2.7
-      '@rolldown/binding-win32-x64-msvc': 1.2.7
 
   rolldown@1.2.8:
     dependencies:
@@ -5367,7 +5426,7 @@ snapshots:
       lightningcss: 1.33.0
       picomatch: 4.0.7
       postcss: 8.5.28
-      rolldown: 1.2.7
+      rolldown: 1.2.8
       tinyglobby: 0.2.17
     optionalDependencies:
       '@types/node': 24.13.3
