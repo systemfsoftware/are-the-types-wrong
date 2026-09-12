@@ -84,6 +84,45 @@ const cliManifest = async (url: URL): Promise<{ readonly command: string; readon
 const ANSI_SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
 const stripAnsi = (text: string): string => text.replace(ANSI_SGR, '')
 
+const RESOLUTION_COLUMNS = ['node10', 'node16-cjs', 'node16-esm', 'bundler'] as const
+
+const TABLE_HEADER = ['Entrypoint', ...RESOLUTION_COLUMNS]
+
+const emojiProblemCells = /^[✘◌⚠]+$/
+const asciiProblemCells = /^[X!-]+$/
+const okCells = /^(?:✔|OK)$/
+
+interface HumanTable {
+  readonly header: readonly string[]
+  readonly rows: readonly (readonly string[])[]
+}
+
+const humanTable = (stdout: string): HumanTable => {
+  const lines = stripAnsi(stdout).split('\n').filter((line) => line.trim() !== '')
+  const headerIndex = lines.findIndex((line) => line.trim().startsWith('Entrypoint'))
+  if (headerIndex === -1) throw new Error(`attw printed no human table: ${stdout}`)
+  const headerLine = lines[headerIndex]
+  if (headerLine === undefined) throw new Error(`attw printed no human table: ${stdout}`)
+  const header = headerLine.trim().split(/\s{2,}/)
+  const rows = lines.slice(headerIndex + 1).map((line) => line.trim().split(/\s{2,}/))
+  return { header, rows }
+}
+
+const expectHumanTable = (
+  stdout: string,
+  expected: { readonly header: readonly string[]; readonly labels: readonly string[] },
+  cell: RegExp,
+): void => {
+  expect(() => JSON.parse(stdout)).toThrow()
+  const table = humanTable(stdout)
+  expect(table.header).toEqual([...expected.header])
+  expect(table.rows.map((row) => row[0])).toEqual([...expected.labels])
+  for (const row of table.rows) {
+    expect(row.length).toBe(table.header.length)
+    for (const value of row.slice(1)) expect(value).toMatch(cell)
+  }
+}
+
 const runCli = async (args: readonly string[], cwd = WORKDIR) => {
   const result = await container.exec([cliBin, ...args], { workingDir: cwd })
   return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr }
@@ -248,26 +287,38 @@ describe('attw, built by nix, run in a container', () => {
   })
 
   test('reports resolution problems for an untyped package', async () => {
-    const result = await runCli([`${FIXTURES_DIR}/untyped-resolution.tgz`], FIXTURES_DIR)
+    const result = await runCli([`${FIXTURES_DIR}/untyped-resolution.tgz`, '-f', 'table'], FIXTURES_DIR)
 
     expect(result.exitCode).toBe(1)
-    expect(result.stdout).toMatch(
-      /NoResolution|UntypedResolution|FalseExportDefault|NamedExports|Resolution failed|No types/,
-    )
+    expectHumanTable(result.stdout, { header: TABLE_HEADER, labels: ['.'] }, /^◌+$/)
   })
 
   test('names the problem for a package with false CommonJS declarations', async () => {
-    const result = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`], FIXTURES_DIR)
+    const result = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`, '-f', 'table'], FIXTURES_DIR)
 
     expect(result.exitCode).toBe(1)
-    expect(result.stdout).toMatch(/FalseCJS/)
+    expectHumanTable(result.stdout, { header: TABLE_HEADER, labels: ['.'] }, /^✘+$/)
   })
 
-  test.each(['table', 'table-flipped', 'ascii'] as const)('renders %s output', async (format) => {
-    const result = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`, '-f', format], FIXTURES_DIR)
+  test('renders table-flipped output as a human table', async () => {
+    const result = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`, '-f', 'table-flipped'], FIXTURES_DIR)
 
     expect(result.exitCode).toBe(1)
-    expect(result.stdout.length).toBeGreaterThan(0)
+    expectHumanTable(result.stdout, { header: ['Entrypoint', '.'], labels: RESOLUTION_COLUMNS }, /^✘+$/)
+  })
+
+  test('renders ascii output as a human table', async () => {
+    const result = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`, '-f', 'ascii', '--no-emoji'], FIXTURES_DIR)
+
+    expect(result.exitCode).toBe(1)
+    expectHumanTable(result.stdout, { header: TABLE_HEADER, labels: ['.'] }, asciiProblemCells)
+  })
+
+  test('renders the human table when the format is explicit on a non-TTY stream', async () => {
+    const result = await runCli([`${FIXTURES_DIR}/multi-entrypoint.tgz`, '-f', 'table'], FIXTURES_DIR)
+
+    expect(result.exitCode).toBe(1)
+    expectHumanTable(result.stdout, { header: TABLE_HEADER, labels: ['.', './macros', './utils'] }, emojiProblemCells)
   })
 
   test('emits json naming the analyzed package and its problems', async () => {
@@ -328,13 +379,14 @@ describe('attw, built by nix, run in a container', () => {
   test('applies a .attw.json waiver found in the working directory', async () => {
     const waiver = `${FIXTURES_DIR}/.attw.json`
     await runShell(`rm -f ${waiver}`)
-    const before = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`], FIXTURES_DIR)
+    const before = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`, '-f', 'table'], FIXTURES_DIR)
     await runShell(`printf '%s' '{"ignoreRules":["false-cjs"]}' > ${waiver}`)
-    const after = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`], FIXTURES_DIR)
+    const after = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`, '-f', 'table'], FIXTURES_DIR)
     await runShell(`rm -f ${waiver}`)
 
     expect(before.exitCode).toBe(1)
-    expect(before.stdout).toMatch(/FalseCJS/)
+    expectHumanTable(before.stdout, { header: TABLE_HEADER, labels: ['.'] }, /^✘+$/)
     expect(after.exitCode).toBe(0)
+    expectHumanTable(after.stdout, { header: TABLE_HEADER, labels: ['.'] }, okCells)
   })
 })
