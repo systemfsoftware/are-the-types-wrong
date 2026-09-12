@@ -14,6 +14,12 @@
       "dependsOn": []
     },
     "test:e2e": {
+      "passThroughEnv": [
+        "TESTCONTAINERS_RYUK_DISABLED",
+        "TESTCONTAINERS_HOST_OVERRIDE",
+        "DOCKER_HOST",
+        "CI"
+      ],
       "cache": false,
       "outputLogs": "new-only",
       "dependsOn": [
