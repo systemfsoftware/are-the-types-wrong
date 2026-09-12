@@ -11,7 +11,9 @@
   },
   "files": [
     "dist",
-    "LICENSE"
+    "LICENSE",
+    "SKILL.md",
+    "CONTEXT.md"
   ],
   "bin": {
     "attw": "./dist/main.mjs"
