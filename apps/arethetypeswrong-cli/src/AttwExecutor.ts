@@ -20,17 +20,17 @@ import { applyProfile, type CliProfileName } from './Profiles.js'
 import { ApplyProfileCommand } from './Profiles.schema.js'
 import { RegistryDocument } from './Registry.schema.js'
 import { decodePayloadSize, decodeRegistryUrl, type PayloadKind } from './RegistryUrl.js'
-import { renderAnalysis } from './Render.js'
+import { renderAnalysisForMode } from './Render.js'
+import { decideRenderMode } from './RenderMode.js'
+import { DecideRenderModeCommand, type RequestedFormat } from './RenderMode.schema.js'
 import { Terminal } from './TerminalAdapter.js'
-
-export type CliFormat = 'auto' | 'table' | 'table-flipped' | 'ascii' | 'json'
 
 export interface CliRequest {
   readonly fileOrDirectory: string
   readonly pack?: boolean
   readonly fromNpm?: boolean
   readonly definitelyTyped?: string | boolean
-  readonly format?: CliFormat
+  readonly format?: RequestedFormat
   readonly quiet?: boolean
   readonly entrypoints?: readonly string[]
   readonly includeEntrypoints?: readonly string[]
@@ -209,26 +209,28 @@ export const runAttw = (
         ignoreResolutions: [...prepared.ignoreResolutions],
       }),
     )
-    if (request.quiet !== true) {
-      const output = renderAnalysis(prepared.result, {
+    const mode = decideRenderMode(
+      new DecideRenderModeCommand({
+        isTty: terminal.isTty,
+        terminalWidth: terminal.width,
         format: request.format ?? 'auto',
-        color: request.color ?? true,
-        summary: request.summary ?? true,
-        ignoreRules: prepared.ignoreRules,
-        useEmoji: request.emoji ?? true,
         quiet: request.quiet ?? false,
-        terminalWidth: 120,
-        isTTY: true,
-      })
-      yield* terminal.stdout.write(output)
-    }
+      }),
+    ).mode
+    const output = renderAnalysisForMode(prepared.result, mode, {
+      color: request.color ?? true,
+      summary: request.summary ?? true,
+      ignoreRules: prepared.ignoreRules,
+      useEmoji: request.emoji ?? true,
+    })
+    if (output !== '') yield* terminal.stdout.write(output)
     return exitDecision.exitCode
   })
 
 export const _attwCliExecutorUsed = {
   applyProfile,
   computeExitCode,
-  renderAnalysis,
+  renderAnalysisForMode,
   prepareAnalysis,
   CheckPackage,
   PackageStore,

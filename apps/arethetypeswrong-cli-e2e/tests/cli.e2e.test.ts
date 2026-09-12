@@ -321,6 +321,18 @@ describe('attw, built by nix, run in a container', () => {
     expectHumanTable(result.stdout, { header: TABLE_HEADER, labels: ['.', './macros', './utils'] }, emojiProblemCells)
   })
 
+  test('writes one compact JSON document on a non-TTY stream with no format flag', async () => {
+    const result = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`], FIXTURES_DIR)
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout.endsWith('\n')).toBe(true)
+    expect(result.stdout.trimEnd().includes('\n')).toBe(false)
+    expect(result.stdout).not.toContain(String.fromCharCode(27))
+    const parsed: unknown = JSON.parse(result.stdout)
+    expect(typeof parsed).toBe('object')
+    expect(parsed).not.toBeNull()
+  })
+
   test('emits json naming the analyzed package and its problems', async () => {
     const result = await runCli([`${FIXTURES_DIR}/untyped-resolution.tgz`, '-f', 'json'], FIXTURES_DIR)
 
