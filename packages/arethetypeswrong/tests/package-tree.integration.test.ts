@@ -6,63 +6,59 @@ import { expect } from 'vitest'
 
 const Feature = makeFeature({ it, layer })
 
+const authoredTree = (packageName: string) => ({
+  'package.json': JSON.stringify({
+    name: packageName,
+    version: '1.0.0',
+    main: './index.js',
+    types: './index.d.ts',
+  }),
+  'index.d.ts': 'export declare const x: number;\n',
+  'index.js': 'export const x = 1;\n',
+})
+
 Feature('Package trees constructed from authored files').body(({ scenario }) => {
   scenario(
-    'an authored tree is mounted under its package name inside node_modules',
+    'an unscoped package is reported from its own node_modules directory',
     Gherkin.Do.pipe(
-      Given('an authored tree with a relative package.json and a declaration file')(
+      Given('an authored tree named demo')(
         'pkg',
-        () =>
-          Effect.sync(() =>
-            createPackage(
-              {
-                'package.json': JSON.stringify({ name: 'demo', version: '1.0.0' }),
-                'index.d.ts': 'export declare const x: number',
-              },
-              'demo',
-              '1.0.0',
-            )
-          ),
+        () => Effect.sync(() => createPackage(authoredTree('demo'), 'demo', '1.0.0')),
       ),
-      When('the package is mounted and analysed')('result', ({ pkg }) =>
-        Effect.gen(function*() {
-          expect(pkg.fileExists('/node_modules/demo/package.json')).toBe(true)
-          expect(pkg.fileExists('/node_modules/demo/index.d.ts')).toBe(true)
-          return yield* checkPackage(pkg)
-        })),
-      Then('the analysis reports entrypoints for the mounted package')(({ result }) =>
-        Effect.sync(() => {
-          expect('entrypoints' in result).toBe(true)
-        })
-      ),
+      When('the package is analysed')('analysed', ({ pkg }) => checkPackage(pkg)),
+      Then('the analysis names the authored package and resolves its declaration file')(({ analysed }) => {
+        expect(analysed.packageName).toBe('demo')
+        expect(analysed.packageVersion).toBe('1.0.0')
+        if (!('entrypoints' in analysed)) {
+          throw new Error('expected the analysis of a package carrying declarations')
+        }
+        expect(analysed.entrypoints['.']?.hasTypes).toBe(true)
+        expect(analysed.entrypoints['.']?.resolutions.node10.resolution?.fileName).toBe(
+          '/node_modules/demo/index.d.ts',
+        )
+      }),
     ),
   )
 
   scenario(
-    'a scoped package name is mounted under its scope directory',
+    'a scoped package is reported from its own scope directory',
     Gherkin.Do.pipe(
-      Given('an authored tree whose package name is scoped')('pkg', () =>
-        Effect.sync(() =>
-          createPackage(
-            {
-              'package.json': JSON.stringify({ name: '@acme/pkg', version: '1.0.0' }),
-              'index.d.ts': 'export {}',
-            },
-            '@acme/pkg',
-            '1.0.0',
-          )
-        )),
-      When('the package is mounted and analysed')('result', ({ pkg }) =>
-        Effect.gen(function*() {
-          expect(pkg.fileExists('/node_modules/@acme/pkg/package.json')).toBe(true)
-          expect(pkg.fileExists('/node_modules/@acme/pkg/index.d.ts')).toBe(true)
-          return yield* checkPackage(pkg)
-        })),
-      Then('the analysis reports entrypoints for the scoped package')(({ result }) =>
-        Effect.sync(() => {
-          expect('entrypoints' in result).toBe(true)
-        })
+      Given('an authored tree named @acme/pkg')(
+        'pkg',
+        () => Effect.sync(() => createPackage(authoredTree('@acme/pkg'), '@acme/pkg', '1.0.0')),
       ),
+      When('the package is analysed')('analysed', ({ pkg }) => checkPackage(pkg)),
+      Then('the analysis names the authored scoped package and resolves its declaration file')(({ analysed }) => {
+        expect(analysed.packageName).toBe('@acme/pkg')
+        expect(analysed.packageVersion).toBe('1.0.0')
+        if (!('entrypoints' in analysed)) {
+          throw new Error('expected the analysis of a package carrying declarations')
+        }
+        expect(analysed.entrypoints['.']?.hasTypes).toBe(true)
+        expect(analysed.entrypoints['.']?.resolutions.node10.resolution?.fileName).toBe(
+          '/node_modules/@acme/pkg/index.d.ts',
+        )
+      }),
     ),
   )
 })

@@ -42,12 +42,12 @@ const resolveAndFetch = Effect.gen(function*() {
   return { ref, bytes }
 })
 
-const resolveThroughLive = Effect.gen(function*() {
+const missThroughLive = Effect.gen(function*() {
   const service = yield* PackageStore
   return yield* Effect.flip(service.resolveTarballRef(spec, { registryBaseUrl }))
 }).pipe(Effect.provide(PackageStoreLive))
 
-const resolveThroughRecorded = Effect.gen(function*() {
+const missThroughRecorded = Effect.gen(function*() {
   const service = yield* PackageStore
   return yield* service.resolveTarballRef(spec, { registryBaseUrl })
 }).pipe(Effect.provide(recordedStore))
@@ -74,21 +74,19 @@ Feature('A recorded package store standing in for the live registry').body(({ sc
         'resolution',
         () => (service) => resolveAndFetch.pipe(Effect.provideService(PackageStore, service)),
       ),
-      Then('both stores name the same package, version and tarball url')(({ resolution }) =>
-        Effect.sync(() => {
-          expect(resolution.a.ref).toEqual(resolution.b.ref)
-        })
-      ),
-      Then('both stores hand back the same bytes')(({ resolution }) =>
-        Effect.sync(() => {
-          expect([...resolution.a.bytes]).toEqual([...resolution.b.bytes])
-        })
-      ),
+      Then('both stores name the same package, version and tarball url')(({ resolution }) => {
+        expect(resolution.a.ref).toEqual(resolution.b.ref)
+        expect(resolution.a.ref).toEqual(recordedRef)
+      }),
+      Then('both stores hand back the same bytes')(({ resolution }) => {
+        expect([...resolution.a.bytes]).toEqual([...resolution.b.bytes])
+        expect([...resolution.a.bytes]).toEqual([...recordedTarball])
+      }),
     ),
   )
 
   scenario(
-    'the live registry refuses a miss the recorded store does not model',
+    'the live registry refuses a miss the recorded store never models',
     Gherkin.Do.pipe(
       Given('a registry answering that the package was not found')(
         'registry',
@@ -98,20 +96,19 @@ Feature('A recorded package store standing in for the live registry').body(({ sc
         'outcomes',
         () =>
           Effect.all({
-            live: resolveThroughLive.pipe(Effect.mapError(() => 'unexpected-succeed')),
-            recorded: resolveThroughRecorded,
+            live: missThroughLive,
+            recorded: missThroughRecorded,
           }),
       ),
-      Then('the live registry reports a package-not-found failure')(({ outcomes }) =>
-        Effect.sync(() => {
-          expect(Predicate.isTagged(outcomes.live, 'PackageNotFoundError')).toBe(true)
-        })
-      ),
-      Then('the recorded store still answers with its recorded reference')(({ outcomes }) =>
-        Effect.sync(() => {
-          expect(outcomes.recorded).toEqual(recordedRef)
-        })
-      ),
+      Then('the live registry reports a package-not-found failure naming that package')(({ outcomes }) => {
+        expect(Predicate.isTagged(outcomes.live, 'PackageNotFoundError')).toBe(true)
+        if (Predicate.isTagged(outcomes.live, 'PackageNotFoundError')) {
+          expect(outcomes.live.packageName).toBe('fake-vs-real')
+        }
+      }),
+      Then('the recorded store still answers with its recorded reference')(({ outcomes }) => {
+        expect(outcomes.recorded).toEqual(recordedRef)
+      }),
     ),
   )
 })
