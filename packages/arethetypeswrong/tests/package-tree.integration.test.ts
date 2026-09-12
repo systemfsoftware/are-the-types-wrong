@@ -6,6 +6,11 @@ import { expect } from 'vitest'
 
 const Feature = makeFeature({ it, layer })
 
+const authoredMounts = [
+  { name: 'demo', mount: '/node_modules/demo/index.d.ts' },
+  { name: '@acme/pkg', mount: '/node_modules/@acme/pkg/index.d.ts' },
+] as const
+
 const authoredTree = (packageName: string) => ({
   'package.json': JSON.stringify({
     name: packageName,
@@ -17,48 +22,26 @@ const authoredTree = (packageName: string) => ({
   'index.js': 'export const x = 1;\n',
 })
 
-Feature('Package trees constructed from authored files').body(({ scenario }) => {
-  scenario(
-    'an unscoped package is reported from its own node_modules directory',
-    Gherkin.Do.pipe(
-      Given('an authored tree named demo')(
-        'pkg',
-        () => Effect.sync(() => createPackage(authoredTree('demo'), 'demo', '1.0.0')),
+Feature('Package trees constructed from authored files').body(({ scenarioOutline }) => {
+  scenarioOutline(
+    'the <name> package is reported from the directory it was mounted at',
+    authoredMounts,
+    (row) =>
+      Gherkin.Do.pipe(
+        Given('an authored tree mounted under its own name')(
+          'pkg',
+          () => Effect.sync(() => createPackage(authoredTree(row.name), row.name, '1.0.0')),
+        ),
+        When('the package is analysed')('analysed', ({ pkg }) => checkPackage(pkg)),
+        Then('the analysis names the package and resolves its declaration file')(({ analysed }) => {
+          expect(analysed.packageName).toBe(row.name)
+          expect(analysed.packageVersion).toBe('1.0.0')
+          if (!('entrypoints' in analysed)) {
+            throw new Error('expected the analysis of a package carrying declarations')
+          }
+          expect(analysed.entrypoints['.']?.hasTypes).toBe(true)
+          expect(analysed.entrypoints['.']?.resolutions.node10.resolution?.fileName).toBe(row.mount)
+        }),
       ),
-      When('the package is analysed')('analysed', ({ pkg }) => checkPackage(pkg)),
-      Then('the analysis names the authored package and resolves its declaration file')(({ analysed }) => {
-        expect(analysed.packageName).toBe('demo')
-        expect(analysed.packageVersion).toBe('1.0.0')
-        if (!('entrypoints' in analysed)) {
-          throw new Error('expected the analysis of a package carrying declarations')
-        }
-        expect(analysed.entrypoints['.']?.hasTypes).toBe(true)
-        expect(analysed.entrypoints['.']?.resolutions.node10.resolution?.fileName).toBe(
-          '/node_modules/demo/index.d.ts',
-        )
-      }),
-    ),
-  )
-
-  scenario(
-    'a scoped package is reported from its own scope directory',
-    Gherkin.Do.pipe(
-      Given('an authored tree named @acme/pkg')(
-        'pkg',
-        () => Effect.sync(() => createPackage(authoredTree('@acme/pkg'), '@acme/pkg', '1.0.0')),
-      ),
-      When('the package is analysed')('analysed', ({ pkg }) => checkPackage(pkg)),
-      Then('the analysis names the authored scoped package and resolves its declaration file')(({ analysed }) => {
-        expect(analysed.packageName).toBe('@acme/pkg')
-        expect(analysed.packageVersion).toBe('1.0.0')
-        if (!('entrypoints' in analysed)) {
-          throw new Error('expected the analysis of a package carrying declarations')
-        }
-        expect(analysed.entrypoints['.']?.hasTypes).toBe(true)
-        expect(analysed.entrypoints['.']?.resolutions.node10.resolution?.fileName).toBe(
-          '/node_modules/@acme/pkg/index.d.ts',
-        )
-      }),
-    ),
   )
 })
