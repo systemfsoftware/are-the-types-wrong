@@ -54,18 +54,43 @@ const analyzeJson = (stdout: string): DecodedEnvelope => {
   return { status, packageName, packageVersion, problems: problems ?? [], keys: Object.keys(parsed) }
 }
 
-const failureDocument = (stderr: string): { readonly kind: string; readonly recovery: string } => {
-  const parsed: unknown = JSON.parse(stderr)
+const errorDocument = (text: string): { readonly kind: string; readonly recovery: string } => {
+  const parsed: unknown = JSON.parse(text)
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`attw printed no failure document: ${stderr}`)
+    throw new Error(`attw printed no failure document: ${text}`)
   }
   const status = 'status' in parsed ? parsed.status : undefined
   const kind = 'kind' in parsed ? parsed.kind : undefined
   const recovery = 'recovery' in parsed ? parsed.recovery : undefined
   if (status !== 'error' || typeof kind !== 'string' || typeof recovery !== 'string') {
-    throw new Error(`attw printed no failure document: ${stderr}`)
+    throw new Error(`attw printed no failure document: ${text}`)
   }
   return { kind, recovery }
+}
+
+const failureDocument = errorDocument
+
+const usageErrorDocument = (
+  stderr: string,
+): { readonly kind: string; readonly recovery: string } => {
+  const [line = ''] = stderr.split('\n')
+  return errorDocument(line)
+}
+
+const schemaDocument = (
+  stdout: string,
+): { readonly version: string; readonly input: unknown; readonly envelope: unknown } => {
+  const parsed: unknown = JSON.parse(stdout)
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`attw schema printed no document: ${stdout}`)
+  }
+  if (!('version' in parsed) || typeof parsed.version !== 'string') {
+    throw new Error(`attw schema printed no version: ${stdout}`)
+  }
+  if (!('input' in parsed) || !('envelope' in parsed)) {
+    throw new Error(`attw schema printed no input and envelope sections: ${stdout}`)
+  }
+  return { version: parsed.version, input: parsed.input, envelope: parsed.envelope }
 }
 
 let container: StartedTestContainer
@@ -465,5 +490,54 @@ describe('attw, built by nix, run in a container', () => {
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe('')
     expect(failureDocument(result.stderr).kind).toBe('InvalidPackageSpec')
+  })
+
+  test('describes its input surface and envelope as JSON Schema documents', async () => {
+    const { version } = await cliManifest(CLI_MANIFEST_URL)
+    const result = await runCli(['schema'])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stderr).toBe('')
+    const document = schemaDocument(result.stdout)
+    expect(document.version).toBe(version)
+    const input = JSON.stringify(document.input)
+    for (const flag of ['pack', 'from-npm', 'definitely-typed', 'format', 'quiet', 'registry', 'profile']) {
+      expect(input).toContain(`"${flag}"`)
+    }
+    const envelope = JSON.stringify(document.envelope)
+    for (const field of ['"ok"', '"untyped"', '"status"', '"packageName"', '"problemCounts"']) {
+      expect(envelope).toContain(field)
+    }
+  })
+
+  test('analyzes the same package through the analyze subcommand as through the bare alias', async () => {
+    const bare = await runCli([`${FIXTURES_DIR}/multi-entrypoint.tgz`], FIXTURES_DIR)
+    const explicit = await runCli(['analyze', `${FIXTURES_DIR}/multi-entrypoint.tgz`], FIXTURES_DIR)
+
+    expect(explicit.exitCode).toBe(bare.exitCode)
+    expect(explicit.stdout).toBe(bare.stdout)
+    expect(explicit.stderr).toBe(bare.stderr)
+  })
+
+  test('keeps an unknown flag out of stdout with a typed stderr document', async () => {
+    const result = await runCli(['--definitely-not-a-flag', `${FIXTURES_DIR}/false-cjs.tgz`], FIXTURES_DIR)
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toBe('')
+    const failure = usageErrorDocument(result.stderr)
+    expect(failure.kind).toBe('UnrecognizedOption')
+    expect(failure.recovery.length).toBeGreaterThan(0)
+  })
+
+  test('refuses extra arguments to the schema subcommand instead of analyzing them', async () => {
+    const bare = await runCli(['schema', 'extra-arg'])
+    const pathLike = await runCli(['schema', `${FIXTURES_DIR}/false-cjs.tgz`], FIXTURES_DIR)
+
+    expect(bare.exitCode).toBe(1)
+    expect(bare.stdout).toBe('')
+    expect(usageErrorDocument(bare.stderr).kind).toBe('UnexpectedArgument')
+    expect(pathLike.exitCode).toBe(1)
+    expect(pathLike.stdout).toBe('')
+    expect(usageErrorDocument(pathLike.stderr).kind).toBe('UnexpectedArgument')
   })
 })

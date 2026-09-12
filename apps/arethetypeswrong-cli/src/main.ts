@@ -7,19 +7,17 @@ import { layer as nodeTerminalLayer } from '@effect/platform-node-shared/NodeTer
 import { runMain } from '@effect/platform-node/NodeRuntime'
 import { Effect, Layer } from 'effect'
 import { layer as cliConfigLayerFactory } from 'effect/unstable/cli/CliConfig'
-import * as Command from 'effect/unstable/cli/Command'
-
-import manifest from '../package.json'
 
 import { AttwConfigFileLayer } from './AttwConfigExecutor.js'
-import { attwCommand, renderFailure } from './AttwHandler.js'
+import { renderFailure, runCli } from './AttwHandler.js'
 import { FilesystemLive } from './FilesystemAdapter.js'
 import { PackRunnerLive } from './PackRunnerAdapter.js'
+import { cliVersion } from './SchemaCommand.js'
 import { TerminalLive } from './TerminalAdapter.js'
 
 const cliConfigLayer = Layer.provideMerge(cliConfigLayerFactory(), AttwConfigFileLayer)
 
-const main = Command.runWith(attwCommand, { version: manifest.version })
+const main = runCli(process.argv.slice(2), { version: cliVersion })
 
 const cliLayer = Layer.mergeAll(TerminalLive, FilesystemLive)
 
@@ -34,7 +32,7 @@ const nodeRuntime = Layer.mergeAll(
 
 const terminalLayer = Layer.provideMerge(TerminalLive, nodeBase)
 
-const program = main(process.argv.slice(2)).pipe(
+const program = main.pipe(
   Effect.withLogSpan('attw'),
 )
 
