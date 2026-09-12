@@ -307,6 +307,9 @@ importers:
       '@systemfsoftware/arethetypeswrong-cli':
         specifier: 'catalog:'
         version: 4.0.0(redis@6.2.1)
+      '@systemfsoftware/arethetypeswrong-published':
+        specifier: npm:@systemfsoftware/arethetypeswrong@7.0.0
+        version: '@systemfsoftware/arethetypeswrong@7.0.0'
       '@systemfsoftware/arethetypeswrong-recipes':
         specifier: workspace:^
         version: link:../arethetypeswrong-recipes
