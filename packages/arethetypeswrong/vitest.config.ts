@@ -42,7 +42,7 @@ export default defineConfig({
   plugins: [inlineSchemaTests()],
   test: {
     ...sharedConfig.test,
-    include: ['tests/**/*.test.ts', 'src/schema-laws.test.ts'],
+    include: ['tests/**/*.test.ts', 'src/schema-laws.test.ts', 'src/__tests__/*.workflow.property.test.ts'],
     exclude: [...sharedConfig.test.exclude, '**/snapshots/**'],
     includeSource: ['src/**/*.ts'],
   },
