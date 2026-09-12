@@ -9,6 +9,8 @@ import { Effect, Layer } from 'effect'
 import { layer as cliConfigLayerFactory } from 'effect/unstable/cli/CliConfig'
 import * as Command from 'effect/unstable/cli/Command'
 
+import manifest from '../package.json'
+
 import { AttwConfigFileLayer } from './AttwConfigExecutor.js'
 import { attwCommand } from './AttwHandler.js'
 import { FilesystemLive } from './FilesystemAdapter.js'
@@ -18,7 +20,7 @@ import { TerminalLive } from './TerminalAdapter.js'
 
 const cliConfigLayer = Layer.provideMerge(cliConfigLayerFactory(), AttwConfigFileLayer)
 
-const main = Command.runWith(attwCommand, { version: '1.1.1' })
+const main = Command.runWith(attwCommand, { version: manifest.version })
 
 const cliLayer = Layer.mergeAll(TerminalLive, FilesystemLive, StdinLive)
 
