@@ -50,6 +50,13 @@ export const analyzeFlags = {
   'entrypoints': Flag.optional(Flag.atLeast<string>(1)(Flag.string('entrypoints'))),
   'include-entrypoints': Flag.optional(Flag.atLeast<string>(1)(Flag.string('include-entrypoints'))),
   'exclude-entrypoints': Flag.optional(Flag.atLeast<string>(1)(Flag.string('exclude-entrypoints'))),
+  'include': Flag.optional(
+    Flag.atLeast<string>(1)(Flag.string('include')).pipe(
+      Flag.withDescription(
+        'Comma-separated envelope fields to restore: entrypoints, buildTools, programInfo, traces',
+      ),
+    ),
+  ),
   'entrypoints-legacy': Flag.boolean('entrypoints-legacy').pipe(Flag.withDefault(false)),
   'ignore-rules': Flag.optional(
     Flag.atLeast<string>(1)(Flag.string('ignore-rules').pipe(Flag.withAlias('ignore-rule'))).pipe(
@@ -96,6 +103,7 @@ const analyzeHandler = (
       includeEntrypoints: unwrap(config['include-entrypoints']),
       excludeEntrypoints: unwrap(config['exclude-entrypoints']),
       entrypointsLegacy: config['entrypoints-legacy'],
+      include: unwrap(config['include']),
       ignoreRules: unwrap(config['ignore-rules']),
       profile: config['profile'],
       summary: config['summary'],

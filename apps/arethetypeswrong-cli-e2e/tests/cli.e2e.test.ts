@@ -398,6 +398,26 @@ describe('attw, built by nix, run in a container', () => {
     expect(envelope.problems).toEqual([])
   })
 
+  test('hints the expansion flag on a non-TTY run with the default mask', async () => {
+    const result = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`], FIXTURES_DIR)
+
+    expect(result.exitCode).toBe(1)
+    const hints = result.stderr.split('\n').filter((line) => line !== '')
+    expect(hints).toHaveLength(1)
+    expect(hints[0]).toContain('--include')
+    for (const field of ['entrypoints', 'buildTools', 'programInfo', 'traces']) {
+      expect(hints[0]).toContain(field)
+    }
+  })
+
+  test('restores a requested field with --include and stays silent', async () => {
+    const result = await runCli([`${FIXTURES_DIR}/false-cjs.tgz`, '--include', 'entrypoints'], FIXTURES_DIR)
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toBe('')
+    expect(analyzeJson(result.stdout).keys).toContain('entrypoints')
+  })
+
   test('emits json naming the analyzed package and its problems', async () => {
     const result = await runCli([`${FIXTURES_DIR}/untyped-resolution.tgz`, '-f', 'json'], FIXTURES_DIR)
 

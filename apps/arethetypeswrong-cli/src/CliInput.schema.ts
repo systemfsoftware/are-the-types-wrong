@@ -11,6 +11,7 @@ export const CliInputSchema = S.Struct({
   'entrypoints': S.optionalKey(S.Array(S.String)),
   'include-entrypoints': S.optionalKey(S.Array(S.String)),
   'exclude-entrypoints': S.optionalKey(S.Array(S.String)),
+  'include': S.optionalKey(S.Array(S.String)),
   'entrypoints-legacy': S.Boolean,
   'ignore-rules': S.optionalKey(S.Array(S.String)),
   'profile': S.Literals(CliProfile),

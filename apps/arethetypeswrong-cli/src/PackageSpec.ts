@@ -6,6 +6,7 @@ import {
 import { Array, Option, Result } from 'effect'
 
 import { InvalidPackageSpec, TargetNotPackable } from './Failure.schema.js'
+import { directoryWithoutPackHint } from './Hints.js'
 
 const acceptedSpecShape = 'Expected `pkg`, `pkg@1.2.3`, `pkg@^1.2.3`, `pkg@next`, or `@scope/pkg`.'
 
@@ -137,8 +138,7 @@ const targetRules: readonly TargetRule[] = [
 export const targetNotPackable = (): TargetNotPackable =>
   new TargetNotPackable({
     message: 'The target is not a package tarball this tool can read.',
-    recovery:
-      'Pass --pack with a directory, an existing .tgz path, or a package name with --from-npm, then rerun the same command.',
+    recovery: directoryWithoutPackHint.text,
   })
 
 export const decodeTargetShape = (

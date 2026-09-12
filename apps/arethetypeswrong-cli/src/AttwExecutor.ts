@@ -13,7 +13,8 @@ import { decideEnvelope } from './Envelope.js'
 import { classifyRegistryFailure } from './Failure.js'
 import { AnalysisFailed, type AttwFailure, ConfigInvalid, PackFailed, RegistryBadResponse } from './Failure.schema.js'
 import { CliFilesystem as Filesystem } from './FilesystemAdapter.js'
-import { defaultEnvelopeMask } from './Mask.js'
+import { hintsFor, renderHints } from './Hints.js'
+import { decodeIncludeMask } from './Mask.js'
 import { buildManifestUrl, decodePackageSpec, decodeTargetShape, targetNotPackable } from './PackageSpec.js'
 import { PackRunner } from './PackRunnerAdapter.js'
 import { applyProfile, type CliProfileName } from './Profiles.js'
@@ -36,6 +37,7 @@ export interface CliRequest {
   readonly includeEntrypoints?: readonly string[]
   readonly excludeEntrypoints?: readonly string[]
   readonly entrypointsLegacy?: boolean
+  readonly include?: readonly string[]
   readonly ignoreRules?: readonly string[]
   readonly ignoreResolutions?: readonly ResolutionKind[]
   readonly profile?: CliProfileName
@@ -183,6 +185,9 @@ export const runAttw = (
   Effect.gen(function*() {
     const terminal = yield* Terminal
 
+    const include = request.include ?? []
+    const mask = yield* Effect.fromResult(decodeIncludeMask(include))
+
     const { bytes, ref } = yield* acquireTarball(request)
     const storeLayer = PackageStoreStub(ref, bytes)
     const checkPackageLayer = CheckPackageLive.pipe(Layer.provide(storeLayer))
@@ -214,7 +219,7 @@ export const runAttw = (
       result: prepared.result,
       ignoreRules: prepared.ignoreRules,
       ignoreResolutions: prepared.ignoreResolutions,
-      mask: defaultEnvelopeMask,
+      mask,
     })
     const output = renderAnalysisForMode(prepared.result, mode, {
       color: request.color ?? true,
@@ -223,6 +228,17 @@ export const runAttw = (
       useEmoji: request.emoji ?? true,
     }, envelope.document)
     if (output !== '') yield* terminal.stdout.write(output)
+    const hints = renderHints(
+      hintsFor({
+        kind: 'run',
+        document: envelope.document,
+        mode,
+        isTty: terminal.isTty,
+        include,
+        mask,
+      }),
+    )
+    if (hints !== '') yield* terminal.stderr.write(hints)
     return envelope.exitCode
   })
 
