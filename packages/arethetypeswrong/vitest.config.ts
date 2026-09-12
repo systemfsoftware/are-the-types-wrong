@@ -43,7 +43,7 @@ export default defineConfig({
   test: {
     ...sharedConfig.test,
     include: ['tests/**/*.test.ts', 'src/schema-laws.test.ts', 'src/__tests__/*.workflow.property.test.ts'],
-    exclude: [...sharedConfig.test.exclude, '**/snapshots/**'],
+    exclude: sharedConfig.test.exclude,
     includeSource: ['src/**/*.ts'],
   },
 })
