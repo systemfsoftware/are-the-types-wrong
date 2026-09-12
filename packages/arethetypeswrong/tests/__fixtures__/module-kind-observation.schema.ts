@@ -1,5 +1,6 @@
-import { ModuleKindSchema } from '@systemfsoftware/arethetypeswrong'
 import * as S from 'effect/Schema'
+
+import { ModuleKindSchema } from '../../src/Problem.schema.js'
 
 export const ModuleKindObservation = S.Struct({
   typesFileName: S.NullOr(S.String),

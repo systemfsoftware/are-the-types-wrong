@@ -1,6 +1,6 @@
 {
   "checkers": ["typescript"],
-  "coverageAnalysis": "perTest",
+  "coverageAnalysis": "off",
   "disableBail": true,
   "htmlReporter": { "fileName": "reports/mutation-report.html" },
   "ignorePatterns": ["reports", "coverage", "dist"],
