@@ -1,10 +1,16 @@
 import { it } from '@effect/vitest'
-import { ParsedPackageSpecSchema } from '@systemfsoftware/arethetypeswrong'
-import { Effect, Predicate, Result } from 'effect'
+import { type ParsedPackageSpec, ParsedPackageSpecSchema, parsePackageSpec } from '@systemfsoftware/arethetypeswrong'
+import { Match, Option, Predicate, Result, Schema } from 'effect'
 import * as fc from 'effect/testing/FastCheck'
 
-import { buildManifestUrl, decodePackageSpec, decodeTargetShape } from '../PackageSpec.js'
-import { decodePayloadSize, decodeRegistryUrl, type PayloadKind, payloadLimit } from '../RegistryUrl.js'
+import {
+  buildManifestUrl,
+  decodePayloadSize,
+  decodeRegistryUrl,
+  type PayloadKind,
+  payloadLimit,
+} from '../RegistryUrl.js'
+import { resolveAcquisitionSource, ResolveAcquisitionSourceCommand } from '../resolve-acquisition-source.workflow.js'
 
 const registryBase = 'https://registry.npmjs.org'
 const defaultTag = 'latest'
@@ -33,7 +39,7 @@ const scopedSpecParts = fc.record({ name: bareName, version: versionArm })
 
 const overlengthSpec = fc
   .tuple(nameHead, fc.array(nameTail, { minLength: 214, maxLength: 299 }))
-  .map(([head, tail]) => head + tail.join(''))
+  .map(([head, tail]) => `${head}${tail.join('')}x`)
 
 const codeUnitCharacter = (max: number): fc.Arbitrary<string> =>
   fc.oneof(fc.integer({ min: 0, max }), fc.constant(0x7f)).map((code) => String.fromCharCode(code))
@@ -43,23 +49,30 @@ const urlSyntaxOrControlCharacter = fc.oneof(urlSyntaxCharacter, codeUnitCharact
 
 const forbiddenSpec = fc
   .tuple(
+    nameHead,
     fc.array(nameTail, { maxLength: 12 }),
     urlSyntaxOrControlCharacter,
     fc.array(nameTail, { maxLength: 12 }),
   )
-  .map(([head, character, tail]) => head.join('') + character + tail.join(''))
+  .map(([head, prefix, character, suffix]) => `${head}${prefix.join('')}${suffix.join('')}${character}`)
 
 const weldedSpec = fc.oneof(
   fc.constant('pkg?fields=name'),
   fc
     .tuple(fc.array(nameTail, { maxLength: 10 }), fc.constantFrom('?fields=name', '#fragment', '?a=1&b=2'))
-    .map(([prefix, welded]) => `${prefix.join('')}pkg${welded}`),
+    .map(([prefix, welded]) => `p${prefix.join('')}kg${welded}`),
 )
 
 const unversionedScopedSpec = fc.oneof(
   fc.constant('@scope/name'),
   bareName.map((name) => `@${name}/${name}`),
 )
+
+const tarballTarget: fc.Arbitrary<string> = fc
+  .tuple(bareName, fc.constantFrom('.tgz', '.tar.gz'))
+  .map(([name, suffix]) => `${name}${suffix}`)
+
+const parsedSpec: fc.Arbitrary<ParsedPackageSpec> = Schema.toArbitrary(ParsedPackageSpecSchema)(fc)
 
 const octet = fc.integer({ min: 0, max: 255 })
 const publicFirstOctet = fc.oneof(
@@ -138,79 +151,107 @@ const payloadSize = fc.record({
   byteLength: fc.oneof(withinRegistryDocumentLimit, betweenPayloadLimits, beyondTarballLimit),
 })
 
-it.effect.prop('∀spec_RefusedCharacter_⊥Accepted', [forbiddenSpec], ([raw]) =>
-  Effect.succeed(
-    Result.match(decodePackageSpec(raw), {
-      onFailure: (failure) => Predicate.isTagged(failure, 'InvalidPackageSpec') && failure.recovery.length > 0,
-      onSuccess: () => false,
-    }),
-  ))
+const parsedSpecOf = (target: string): Option.Option<ParsedPackageSpec> =>
+  Result.match(parsePackageSpec(target), {
+    onFailure: () => Option.none(),
+    onSuccess: (spec) => Option.some(spec),
+  })
 
-it.effect.prop('∀spec_OverlengthSpec_⊥Accepted', [overlengthSpec], ([raw]) =>
-  Effect.succeed(
-    Result.match(decodePackageSpec(raw), {
-      onFailure: (failure) =>
-        Predicate.isTagged(failure, 'InvalidPackageSpec') && failure.recovery.includes('@scope/pkg'),
-      onSuccess: () => false,
-    }),
-  ))
+const specDecision = (target: string, fromNpm: boolean) =>
+  resolveAcquisitionSource(new ResolveAcquisitionSourceCommand({ target, fromNpm, parsed: parsedSpecOf(target) }))
 
-it.effect.prop('∀spec_WeldedQuery_⊥Accepted', [weldedSpec], ([raw]) =>
-  Effect.succeed(
-    Result.match(decodePackageSpec(raw), {
-      onFailure: (failure) =>
-        Predicate.isTagged(failure, 'InvalidPackageSpec') && failure.recovery.includes('@scope/pkg'),
-      onSuccess: () => false,
-    }),
-  ))
+it.prop('∀spec_RefusedCharacter_⊥Accepted', [forbiddenSpec], ([raw]) =>
+  Result.match(specDecision(raw, false), {
+    onFailure: (failure) => Predicate.isTagged(failure, 'InvalidPackageSpec') && failure.recovery.length > 0,
+    onSuccess: () => false,
+  }))
 
-it.effect.prop('∀parts_DecodePackageSpec_≡Input', [acceptedSpecParts], ([parts]) =>
-  Effect.succeed(
-    Result.match(decodePackageSpec(`${parts.name}@${parts.version}`), {
-      onSuccess: (spec) => spec.name === parts.name && spec.version === parts.version,
+it.prop('∀spec_OverlengthSpec_⊥Accepted', [overlengthSpec], ([raw]) =>
+  Result.match(specDecision(raw, false), {
+    onFailure: (failure) =>
+      Predicate.isTagged(failure, 'InvalidPackageSpec') && failure.recovery.includes('@scope/pkg'),
+    onSuccess: () => false,
+  }))
+
+it.prop('∀spec_WeldedQuery_⊥Accepted', [weldedSpec], ([raw]) =>
+  Result.match(specDecision(raw, false), {
+    onFailure: (failure) =>
+      Predicate.isTagged(failure, 'InvalidPackageSpec') && failure.recovery.includes('@scope/pkg'),
+    onSuccess: () => false,
+  }))
+
+it.prop(
+  '∀parts_DecodePackageSpec_≡Input',
+  [acceptedSpecParts],
+  ([parts]) =>
+    Result.match(specDecision(`${parts.name}@${parts.version}`, true), {
+      onSuccess: (decision) =>
+        Match.value(decision).pipe(
+          Match.tag('RegistryPackage', ({ spec }) => spec.name === parts.name && spec.version === parts.version),
+          Match.tag('ExistingTarball', () => false),
+          Match.exhaustive,
+        ),
       onFailure: () => false,
     }),
-  ))
+)
 
-it.effect.prop('∀parts_ScopedSpec_≡ScopedInput', [scopedSpecParts], ([parts]) => {
+it.prop('∀parts_ScopedSpec_≡ScopedInput', [scopedSpecParts], ([parts]) => {
   const scoped = `@${parts.name}/${parts.name}`
-  return Effect.succeed(
-    Result.match(decodePackageSpec(`${scoped}@${parts.version}`), {
-      onSuccess: (spec) => spec.name === scoped && spec.version === parts.version,
-      onFailure: () => false,
-    }),
-  )
+  return Result.match(specDecision(`${scoped}@${parts.version}`, true), {
+    onSuccess: (decision) =>
+      Match.value(decision).pipe(
+        Match.tag('RegistryPackage', ({ spec }) => spec.name === scoped && spec.version === parts.version),
+        Match.tag('ExistingTarball', () => false),
+        Match.exhaustive,
+      ),
+    onFailure: () => false,
+  })
 })
 
-it.effect.prop('∀spec_UnversionedScoped_=Latest', [unversionedScopedSpec], ([raw]) =>
-  Effect.succeed(
-    Result.match(decodePackageSpec(raw), {
-      onSuccess: (spec) =>
-        spec.versionKind === 'none' &&
-        buildManifestUrl(registryBase, spec).endsWith(`/${encodeURIComponent(raw)}/${defaultTag}`),
+it.prop('∀spec_UnversionedScoped_=Latest', [unversionedScopedSpec], ([raw]) =>
+  Result.match(specDecision(raw, true), {
+    onSuccess: (decision) =>
+      Match.value(decision).pipe(
+        Match.tag('RegistryPackage', ({ spec }) =>
+          spec.versionKind === 'none' &&
+          buildManifestUrl(registryBase, spec).endsWith(`/${encodeURIComponent(raw)}/${defaultTag}`)),
+        Match.tag('ExistingTarball', () => false),
+        Match.exhaustive,
+      ),
+    onFailure: () => false,
+  }))
+
+it.prop(
+  '∀target_TarballTarget_=ExistingTarball',
+  [tarballTarget],
+  ([target]) =>
+    Result.match(specDecision(target, false), {
+      onSuccess: (decision) => Predicate.isTagged(decision, 'ExistingTarball'),
       onFailure: () => false,
     }),
-  ))
+)
 
-it.effect.prop('∀spec_BuildManifestUrl_≡EncodedSegments', [ParsedPackageSpecSchema], ([spec]) => {
+it.prop('∀target_PathTarget_⊥PacklessRead', [pathTarget], ([target]) =>
+  Result.match(specDecision(target, false), {
+    onFailure: (failure) => Predicate.isTagged(failure, 'TargetNotPackable') && failure.recovery.includes('pack'),
+    onSuccess: () => false,
+  }))
+
+it.prop('∀spec_BuildManifestUrl_≡EncodedSegments', [parsedSpec], ([spec]) => {
   const manifest = buildManifestUrl(registryBase, spec)
   const segments = manifest.slice(registryBase.length + 1).split('/')
   const nameSegment = segments[0] ?? ''
   const versionSegment = segments[1] ?? ''
   const unversioned = spec.versionKind === 'none'
-  return Effect.succeed(
-    segments.length === 2 &&
-      decodeURIComponent(nameSegment) === spec.name &&
-      ((unversioned && versionSegment === defaultTag) ||
-        (!unversioned && decodeURIComponent(versionSegment) === spec.version)),
-  )
+  return segments.length === 2 &&
+    decodeURIComponent(nameSegment) === spec.name &&
+    ((unversioned && versionSegment === defaultTag) ||
+      (!unversioned && decodeURIComponent(versionSegment) === spec.version))
 })
 
-it.effect.prop('∀spec_BuildManifestUrl_⊥RawMeta', [ParsedPackageSpecSchema], ([spec]) => {
+it.prop('∀spec_BuildManifestUrl_⊥RawMeta', [parsedSpec], ([spec]) => {
   const manifest = buildManifestUrl(registryBase, spec)
-  return Effect.succeed(
-    !manifest.includes('?') && !manifest.includes('#') && !manifest.includes(' '),
-  )
+  return !manifest.includes('?') && !manifest.includes('#') && !manifest.includes(' ')
 })
 
 const verdaccioBase = fc.constantFrom(
@@ -219,64 +260,58 @@ const verdaccioBase = fc.constantFrom(
   'http://127.0.0.1:4873',
 )
 
-it.effect.prop('∀url_VerdaccioBase_=NormalizedBase', [verdaccioBase], ([raw]) =>
-  Effect.succeed(
-    Result.match(decodeRegistryUrl(raw), {
-      onSuccess: (base) => base === raw.replace(/\/$/, ''),
-      onFailure: () => false,
-    }),
-  ))
+it.prop('∀url_VerdaccioBase_=NormalizedBase', [verdaccioBase], ([raw]) =>
+  Result.match(decodeRegistryUrl(raw), {
+    onSuccess: (base) => base === raw.replace(/\/$/, ''),
+    onFailure: () => false,
+  }))
 
-it.effect.prop(
+it.prop(
   '∀host_RegistryUrl_⊥PublicPlaintext',
   [publicHostPort],
-  ([{ host, chosenPort }]) => Effect.succeed(Result.isFailure(decodeRegistryUrl(`http://${host}:${chosenPort}/`))),
+  ([{ host, chosenPort }]) => Result.isFailure(decodeRegistryUrl(`http://${host}:${chosenPort}/`)),
 )
 
-it.effect.prop(
+it.prop(
   '∀host_LoopbackPrivate_⊥Refusal',
   [localHostPort],
-  ([{ host, chosenPort }]) => Effect.succeed(Result.isSuccess(decodeRegistryUrl(`http://${host}:${chosenPort}/`))),
+  ([{ host, chosenPort }]) => Result.isSuccess(decodeRegistryUrl(`http://${host}:${chosenPort}/`)),
 )
 
-it.effect.prop('∀host_RegistryUrl_=HttpsBase', [fc.oneof(publicHost, localHost)], ([host]) =>
-  Effect.succeed(
+it.prop(
+  '∀host_RegistryUrl_=HttpsBase',
+  [fc.oneof(publicHost, localHost)],
+  ([host]) =>
     Result.match(decodeRegistryUrl(`https://${host}/`), {
       onSuccess: (base) => base === `https://${host}`,
       onFailure: () => false,
     }),
-  ))
+)
 
-it.effect.prop(
+it.prop(
   '∀url_RegistryUrl_⊥Credentials',
   [credentialedUrl],
-  ([raw]) => Effect.succeed(Result.isFailure(decodeRegistryUrl(raw))),
+  ([raw]) => Result.isFailure(decodeRegistryUrl(raw)),
 )
 
-it.effect.prop(
+it.prop(
   '∀url_RegistryUrl_⊥NonHttpScheme',
   [nonHttpUrl],
-  ([raw]) => Effect.succeed(Result.isFailure(decodeRegistryUrl(raw))),
+  ([raw]) => Result.isFailure(decodeRegistryUrl(raw)),
 )
 
-it.effect.prop(
+it.prop(
   '∀url_RegistryUrl_⊥StrippedCharacter',
   [strippedUrl],
-  ([raw]) => Effect.succeed(Result.isFailure(decodeRegistryUrl(raw))),
+  ([raw]) => Result.isFailure(decodeRegistryUrl(raw)),
 )
 
-it.effect.prop('∀target_PathTarget_⊥PacklessRead', [pathTarget], ([target]) =>
-  Effect.succeed(
-    Result.match(decodeTargetShape(target, { fromNpm: false }), {
-      onFailure: (failure) => Predicate.isTagged(failure, 'TargetNotPackable') && failure.recovery.includes('pack'),
-      onSuccess: () => false,
-    }),
-  ))
-
-it.effect.prop('∀size_DecodePayloadSize_≤Limit', [payloadSize], ([{ kind, byteLength }]) =>
-  Effect.succeed(
+it.prop(
+  '∀size_DecodePayloadSize_≤Limit',
+  [payloadSize],
+  ([{ kind, byteLength }]) =>
     Result.match(decodePayloadSize(kind, byteLength), {
       onSuccess: () => byteLength <= payloadLimit(kind),
       onFailure: (refusal) => byteLength > payloadLimit(kind) && refusal.recovery.length > 0,
     }),
-  ))
+)

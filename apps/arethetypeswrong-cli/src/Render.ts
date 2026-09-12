@@ -1,14 +1,14 @@
 import type { Analysis, CheckResult, Problem } from '@systemfsoftware/arethetypeswrong'
 import { Match } from 'effect'
 
-import { renderEnvelopeDocument } from './Envelope.js'
-import type { MachineEnvelope } from './Envelope.schema.js'
+import type { MachineEnvelope } from './decode-envelope-document.workflow.js'
+import { renderEnvelopeDocument } from './envelope-document.js'
 import { isUntypedResult, problemFlagForKind } from './ProblemUtils.js'
 import type { AnsiAnnotation } from './RenderAnsi.js'
 import { renderAsciiAnalysis } from './RenderAscii.js'
-import type { RenderMode } from './RenderMode.schema.js'
 import { renderTypedAnalysis } from './RenderTyped.js'
 import { renderUntyped } from './RenderUntyped.js'
+import type { RenderMode } from './select-render-mode.workflow.js'
 
 export type HumanRenderMode = Exclude<RenderMode, 'envelope' | 'quiet'>
 

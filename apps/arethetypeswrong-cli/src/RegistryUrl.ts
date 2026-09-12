@@ -1,5 +1,7 @@
 import { Array, Option, Result } from 'effect'
 
+import type { PackageSpecVersionKind, ParsedPackageSpec } from '@systemfsoftware/arethetypeswrong'
+
 export interface RegistryUrlRefusal {
   readonly message: string
   readonly recovery: string
@@ -108,6 +110,19 @@ export const decodeRegistryUrl = (raw: string): Result.Result<string, RegistryUr
         onSome: (found) => Result.fail(found),
       },
     ))
+
+const defaultTagByKind: Readonly<Record<PackageSpecVersionKind, Option.Option<string>>> = {
+  none: Option.some('latest'),
+  exact: Option.none(),
+  range: Option.none(),
+  tag: Option.none(),
+}
+
+const requestedVersion = (spec: ParsedPackageSpec): string =>
+  Option.getOrElse(defaultTagByKind[spec.versionKind], () => spec.version)
+
+export const buildManifestUrl = (registryBase: string, spec: ParsedPackageSpec): string =>
+  `${registryBase}/${encodeURIComponent(spec.name)}/${encodeURIComponent(requestedVersion(spec))}`
 
 const payloadLimits: Readonly<Record<PayloadKind, number>> = {
   'registry-document': 8 * 1024 * 1024,

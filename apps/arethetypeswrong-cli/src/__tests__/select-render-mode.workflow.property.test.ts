@@ -1,23 +1,33 @@
 import { it } from '@effect/vitest'
-import { Match, Schema } from 'effect'
+import { Match, Result, Schema } from 'effect'
 import * as fc from 'effect/testing/FastCheck'
 
-import { decideRenderMode } from '../RenderMode.js'
-import { DecideRenderModeCommand, type RenderMode } from '../RenderMode.schema.js'
+import {
+  DecideRenderModeCommand,
+  type RenderMode,
+  type RequestedFormat,
+  selectRenderMode,
+} from '../select-render-mode.workflow.js'
 
-type ModeFormat = DecideRenderModeCommand['format']
+type ModeFormat = RequestedFormat
 type ExplicitFormat = Exclude<ModeFormat, 'auto'>
 
 interface PinnedRequest {
   readonly isTty: boolean
   readonly terminalWidth: number
-  readonly format: ModeFormat
+  readonly format: string
   readonly quiet: boolean
 }
 
-const modeOf = (command: DecideRenderModeCommand): RenderMode => decideRenderMode(command).mode
+const modeOf = (command: DecideRenderModeCommand): RenderMode => Result.getOrThrow(selectRenderMode(command)).mode
 
-const requestAt = (pinned: PinnedRequest): DecideRenderModeCommand => new DecideRenderModeCommand(pinned)
+const requestAt = (pinned: PinnedRequest): DecideRenderModeCommand =>
+  new DecideRenderModeCommand({
+    isTty: pinned.isTty,
+    terminalWidth: pinned.terminalWidth,
+    requestedFormat: pinned.format,
+    quiet: pinned.quiet,
+  })
 
 const terminalWidth: fc.Arbitrary<number> = fc.integer({ min: 0, max: 4_000 })
 
@@ -30,16 +40,26 @@ const quietRequest: fc.Arbitrary<DecideRenderModeCommand> = anyRequest.map((comm
   new DecideRenderModeCommand({
     isTty: command.isTty,
     terminalWidth: command.terminalWidth,
-    format: command.format,
+    requestedFormat: command.requestedFormat,
     quiet: true,
   })
 )
 
+const unrequestedFormat: fc.Arbitrary<string> = fc.string().map((raw) => ` ${raw}`)
+
 const explicitFormat: fc.Arbitrary<ExplicitFormat> = fc.constantFrom('table', 'table-flipped', 'ascii', 'json')
 
-const explicitRequest: fc.Arbitrary<DecideRenderModeCommand> = fc
+interface ExplicitRequest {
+  readonly format: ExplicitFormat
+  readonly command: DecideRenderModeCommand
+}
+
+const explicitRequest: fc.Arbitrary<ExplicitRequest> = fc
   .tuple(fc.boolean(), terminalWidth, explicitFormat)
-  .map(([isTty, width, format]) => requestAt({ isTty, terminalWidth: width, format, quiet: false }))
+  .map(([isTty, width, format]) => ({
+    format,
+    command: requestAt({ isTty, terminalWidth: width, format, quiet: false }),
+  }))
 
 const expectedForFormat: Readonly<Partial<Record<ModeFormat, RenderMode>>> = {
   json: 'envelope',
@@ -79,7 +99,16 @@ it.prop(
 it.prop(
   '∀request_ExplicitFormat_=requestedFormat',
   [explicitRequest],
-  ([command]) => modeOf(command) === expectedForFormat[command.format],
+  ([{ format, command }]) => modeOf(command) === expectedForFormat[format],
 )
 
 it.prop('∀request_QuietRequest_=quiet', [quietRequest], ([command]) => modeOf(command) === 'quiet')
+
+it.prop(
+  '∀request_UnrequestedFormat_⊥Decided',
+  [fc.boolean(), terminalWidth, unrequestedFormat],
+  ([isTty, width, format]) => {
+    const decided = selectRenderMode(requestAt({ isTty, terminalWidth: width, format, quiet: false }))
+    return Result.isFailure(decided) && decided.failure.format === format
+  },
+)

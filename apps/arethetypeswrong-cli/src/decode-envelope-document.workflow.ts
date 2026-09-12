@@ -1,113 +1,88 @@
-import type {
-  Analysis,
-  CheckResult,
-  InternalResolutionErrorProblem,
-  Problem,
-  UntypedResult,
+import {
+  AnalysisTypesSchema,
+  EntrypointInfoSchema,
+  InternalResolutionErrorProblemSchema,
+  ProblemSchema,
+  ProgramInfoSchema,
+  ResolutionOptionSchema,
 } from '@systemfsoftware/arethetypeswrong'
-import { Result } from 'effect'
+import { Workflow } from '@systemfsoftware/effect-cell-types'
+import { Match, Result } from 'effect'
 import * as S from 'effect/Schema'
-
-import { type MachineEnvelope, MachineEnvelopeSchema, type MaskedProblem, type OkEnvelope } from './Envelope.schema.js'
-import { computeExitCode } from './GetExitCode.js'
-import { ComputeExitCodeCommand } from './GetExitCode.schema.js'
-import type { EnvelopeMask } from './Mask.js'
-import { isUntypedResult, isVisibleProblem } from './ProblemUtils.js'
-import { renderJson } from './RenderJson.js'
 
 const rejectUndeclaredKeys = { onExcessProperty: 'error' } as const
 
-export const decodeEnvelope = (value: unknown): Result.Result<MachineEnvelope, unknown> =>
-  S.decodeUnknownResult(MachineEnvelopeSchema, rejectUndeclaredKeys)(value)
+export const MaskedProblemSchema = S.Union([
+  ProblemSchema,
+  S.Struct({
+    ...InternalResolutionErrorProblemSchema.fields,
+    trace: S.optionalKey(S.Array(S.String)),
+  }),
+])
 
-export interface EnvelopeCommand {
-  readonly result: CheckResult
-  readonly ignoreRules: readonly string[]
-  readonly ignoreResolutions: readonly string[]
-  readonly mask: EnvelopeMask
-}
-
-export interface EnvelopeDecision {
-  readonly document: MachineEnvelope
-  readonly exitCode: number
-}
-
-const withoutTrace = (problem: InternalResolutionErrorProblem): MaskedProblem => {
-  const { trace: _traces, ...rest } = problem
-  return rest
-}
-
-const maskProblem = (problem: Problem, keepTraces: boolean): MaskedProblem => {
-  if (keepTraces) return problem
-  if (problem.kind === 'InternalResolutionError') return withoutTrace(problem)
-  return problem
-}
-
-const countByKind = (problems: readonly MaskedProblem[]): Record<string, number> =>
-  problems.reduce<Record<string, number>>((counts, problem) => {
-    counts[problem.kind] = (counts[problem.kind] ?? 0) + 1
-    return counts
-  }, {})
-
-const visibleProblems = (
-  analysis: Analysis,
-  ignoredRules: readonly string[],
-  ignoredResolutions: readonly string[],
-  mask: EnvelopeMask,
-): readonly MaskedProblem[] =>
-  analysis.problems
-    .filter((problem) => isVisibleProblem(problem, ignoredRules, ignoredResolutions))
-    .map((problem) => maskProblem(problem, mask.traces))
-
-const expandedFields = (analysis: Analysis, mask: EnvelopeMask): Partial<OkEnvelope> => {
-  let fields: Partial<OkEnvelope> = {}
-  if (mask.entrypoints) fields = { ...fields, entrypoints: analysis.entrypoints }
-  if (mask.buildTools) fields = { ...fields, buildTools: analysis.buildTools }
-  if (mask.programInfo) fields = { ...fields, programInfo: analysis.programInfo }
-  return fields
-}
-
-const analysisDocument = (
-  analysis: Analysis,
-  problems: readonly MaskedProblem[],
-  mask: EnvelopeMask,
-): MachineEnvelope => ({
-  status: 'ok',
-  packageName: analysis.packageName,
-  packageVersion: analysis.packageVersion,
-  types: analysis.types,
-  problems,
-  problemCounts: countByKind(problems),
-  ...expandedFields(analysis, mask),
+export const OkEnvelopeSchema = S.Struct({
+  status: S.Literal('ok'),
+  packageName: S.String,
+  packageVersion: S.String,
+  types: AnalysisTypesSchema,
+  problems: S.Array(MaskedProblemSchema),
+  problemCounts: S.Record(S.String, S.Number),
+  entrypoints: S.optionalKey(S.Record(S.String, EntrypointInfoSchema)),
+  buildTools: S.optionalKey(S.Record(S.String, S.String)),
+  programInfo: S.optionalKey(S.Record(ResolutionOptionSchema, ProgramInfoSchema)),
 })
 
-const untypedDocument = (result: UntypedResult): MachineEnvelope => ({
-  status: 'untyped',
-  packageName: result.packageName,
-  packageVersion: result.packageVersion,
-  types: false,
+export const UntypedEnvelopeSchema = S.Struct({
+  status: S.Literal('untyped'),
+  packageName: S.String,
+  packageVersion: S.String,
+  types: S.Literal(false),
 })
 
-export const decideEnvelope = (command: EnvelopeCommand): EnvelopeDecision => {
-  const exitCode = computeExitCode(
-    new ComputeExitCodeCommand({
-      result: command.result,
-      ignoreRules: [...command.ignoreRules],
-      ignoreResolutions: [...command.ignoreResolutions],
+export const MachineEnvelopeSchema = S.Union([OkEnvelopeSchema, UntypedEnvelopeSchema])
+
+export type MachineEnvelope = S.Schema.Type<typeof MachineEnvelopeSchema>
+export type OkEnvelope = S.Schema.Type<typeof OkEnvelopeSchema>
+export type MaskedProblem = S.Schema.Type<typeof MaskedProblemSchema>
+
+export class EnvelopeDocumentCommand extends S.Class<EnvelopeDocumentCommand>('EnvelopeDocumentCommand')({
+  value: S.Unknown,
+}) {}
+
+const EnvelopeDocumentDecisionTypeId: unique symbol = Symbol.for(
+  '@systemfsoftware/arethetypeswrong-cli/EnvelopeDocumentDecision',
+)
+type EnvelopeDocumentDecisionTypeId = typeof EnvelopeDocumentDecisionTypeId
+
+export class OkEnvelopeAccepted extends S.TaggedClass<OkEnvelopeAccepted>()('OkEnvelopeAccepted', {
+  document: OkEnvelopeSchema,
+}) {
+  readonly [EnvelopeDocumentDecisionTypeId] = EnvelopeDocumentDecisionTypeId
+}
+
+export class UntypedEnvelopeAccepted extends S.TaggedClass<UntypedEnvelopeAccepted>()('UntypedEnvelopeAccepted', {
+  document: UntypedEnvelopeSchema,
+}) {
+  readonly [EnvelopeDocumentDecisionTypeId] = EnvelopeDocumentDecisionTypeId
+}
+
+export class EnvelopeDocumentRefused extends S.TaggedError<EnvelopeDocumentRefused>()('EnvelopeDocumentRefused', {
+  issue: S.String,
+}) {
+  readonly [EnvelopeDocumentDecisionTypeId] = EnvelopeDocumentDecisionTypeId
+}
+
+export type EnvelopeDocumentDecision = OkEnvelopeAccepted | UntypedEnvelopeAccepted
+
+export const decodeEnvelopeDocument = Workflow.make(
+  EnvelopeDocumentCommand,
+  (command): Result.Result<EnvelopeDocumentDecision, EnvelopeDocumentRefused> =>
+    Result.match(S.decodeUnknownResult(MachineEnvelopeSchema, rejectUndeclaredKeys)(command.value), {
+      onFailure: (issue) => Result.fail(new EnvelopeDocumentRefused({ issue: issue.message })),
+      onSuccess: (document): Result.Result<EnvelopeDocumentDecision, EnvelopeDocumentRefused> =>
+        Match.value(document).pipe(
+          Match.when({ status: 'ok' }, (ok) => Result.succeed(new OkEnvelopeAccepted({ document: ok }))),
+          Match.orElse((untyped) => Result.succeed(new UntypedEnvelopeAccepted({ document: untyped }))),
+        ),
     }),
-  ).exitCode
-  if (isUntypedResult(command.result)) {
-    return { document: untypedDocument(command.result), exitCode }
-  }
-  return {
-    document: analysisDocument(
-      command.result,
-      visibleProblems(command.result, command.ignoreRules, command.ignoreResolutions, command.mask),
-      command.mask,
-    ),
-    exitCode,
-  }
-}
-
-export const renderEnvelopeDocument = (document: MachineEnvelope): string =>
-  renderJson(document, { pretty: false }) + '\n'
+)

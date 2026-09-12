@@ -1,12 +1,18 @@
 import { it } from '@effect/vitest'
-import { Match, Result } from 'effect'
+import { Match, Predicate, Result } from 'effect'
 import * as fc from 'effect/testing/FastCheck'
 
 import { CliInputSchema } from '../CliInput.schema.js'
-import type { MachineEnvelope } from '../Envelope.schema.js'
-import { type HintId, HintIds, hintsFor, renderHints, type RunHintState } from '../Hints.js'
+import type { MachineEnvelope } from '../decode-envelope-document.workflow.js'
+import { type HintId, HintIds, renderHints } from '../hint-shaping.js'
 import { decodeIncludeMask, type EnvelopeMask, type EnvelopeMaskField, EnvelopeMaskFields } from '../Mask.js'
-import type { RenderMode } from '../RenderMode.schema.js'
+import {
+  DecideHintsCommand,
+  offerRecoveryHints,
+  PacklessDirectoryHintsRequest,
+  RunHintsRequest,
+} from '../offer-recovery-hints.workflow.js'
+import type { RenderMode } from '../select-render-mode.workflow.js'
 
 const escape = String.fromCharCode(27)
 
@@ -50,14 +56,34 @@ interface RunOverrides {
   readonly document?: MachineEnvelope
 }
 
-const run = (overrides: RunOverrides): RunHintState => ({
-  kind: 'run',
-  document: overrides.document ?? okDocument('pkg'),
-  mode: overrides.mode ?? 'envelope',
-  isTty: overrides.isTty ?? false,
-  include: overrides.include ?? [],
-  mask: overrides.mask ?? noFields,
-})
+const run = (overrides: RunOverrides): DecideHintsCommand =>
+  new DecideHintsCommand({
+    request: new RunHintsRequest({
+      document: overrides.document ?? okDocument('pkg'),
+      mode: overrides.mode ?? 'envelope',
+      isTty: overrides.isTty ?? false,
+      include: overrides.include ?? [],
+      mask: overrides.mask ?? noFields,
+    }),
+  })
+
+const packlessDirectory = new DecideHintsCommand({ request: new PacklessDirectoryHintsRequest({}) })
+
+const decisions = (command: DecideHintsCommand) => Result.getOrThrow(offerRecoveryHints(command))
+
+const hintList = (command: DecideHintsCommand) =>
+  Match.value(decisions(command)).pipe(
+    Match.tag('HintsOffered', ({ hints }) => hints),
+    Match.tag('NoHintsApplicable', () => []),
+    Match.exhaustive,
+  )
+
+const hintIds = (command: DecideHintsCommand): readonly HintId[] =>
+  Match.value(decisions(command)).pipe(
+    Match.tag('HintsOffered', ({ hints }) => hints.map((hint) => hint.id)),
+    Match.tag('NoHintsApplicable', () => []),
+    Match.exhaustive,
+  )
 
 const situationNames = [
   'tty',
@@ -76,7 +102,7 @@ const situationNames = [
 type Situation = typeof situationNames[number]
 
 interface SituationSpec {
-  readonly state: Parameters<typeof hintsFor>[0]
+  readonly state: DecideHintsCommand
   readonly hints: readonly HintId[]
 }
 
@@ -94,7 +120,7 @@ const situationSpecs: Readonly<Record<Situation, SituationSpec>> = {
   includeGiven: { state: run({ include: ['entrypoints'] }), hints: [] },
   redundantInclude: { state: run({ include: [...EnvelopeMaskFields], mask: allFields }), hints: [] },
   nothingOmitted: { state: run({ mask: allFields }), hints: [] },
-  directoryWithoutPack: { state: { kind: 'directoryWithoutPack' }, hints: ['directoryWithoutPack'] },
+  directoryWithoutPack: { state: packlessDirectory, hints: ['directoryWithoutPack'] },
 }
 
 const renderModes = ['envelope', 'table', 'table-flipped', 'ascii', 'quiet'] as const satisfies readonly RenderMode[]
@@ -147,15 +173,13 @@ const documentNamed = (untyped: boolean, packageName: string): MachineEnvelope =
     Match.exhaustive,
   )
 
-const runNamed = (inputs: HostileRunInputs, packageName: string): RunHintState =>
+const runNamed = (inputs: HostileRunInputs, packageName: string): DecideHintsCommand =>
   run({
     document: documentNamed(inputs.untyped, packageName),
     mode: inputs.mode,
     include: inputs.include,
     mask: inputs.mask,
   })
-
-const hintIds = (state: Parameters<typeof hintsFor>[0]): readonly HintId[] => hintsFor(state).map((hint) => hint.id)
 
 const flagTokensIn = (text: string): readonly string[] =>
   [...text.matchAll(/--[a-z][a-z-]*/g)].map((match) => match[0].slice(2))
@@ -182,7 +206,7 @@ it.prop('∀situation_Hints_=table', [fc.constantFrom(...situationNames)], ([sit
 })
 
 it.prop('∀hostilePackageName_Hints_=nameIndependent∧∌ESC', [hostileRunInputs], ([inputs]) => {
-  const hostile = hintsFor(runNamed(inputs, inputs.packageName))
+  const hostile = hintList(runNamed(inputs, inputs.packageName))
   const text = renderHints(hostile)
   return JSON.stringify(hintIds(runNamed(inputs, inputs.packageName))) ===
       JSON.stringify(hintIds(runNamed(inputs, 'benign-package'))) &&
@@ -193,12 +217,24 @@ it.prop('∀hostilePackageName_Hints_=nameIndependent∧∌ESC', [hostileRunInpu
 
 it.prop('∀hintId_HintFlags_∈CliInputSchema', [fc.constantFrom(...HintIds)], ([id]) => {
   const texts = situationNames
-    .flatMap((situation) => hintsFor(situationSpecs[situation].state))
+    .flatMap((situation) => hintList(situationSpecs[situation].state))
     .filter((hint) => hint.id === id)
     .map((hint) => hint.text)
   return texts.length > 0 &&
     texts.every((text) => flagTokensIn(text).every((flag) => flag in CliInputSchema.fields))
 })
+
+it.prop(
+  '∀token_HintsIncludeRefusal_⊥Hints',
+  [nonFieldToken],
+  ([token]) =>
+    Result.match(offerRecoveryHints(run({ include: [token] })), {
+      onFailure: (refusal) =>
+        Predicate.isTagged(refusal, 'InvalidPackageSpec') &&
+        EnvelopeMaskFields.every((field) => refusal.recovery.includes(field)),
+      onSuccess: () => false,
+    }),
+)
 
 it.prop('∀fields_DecodeIncludeMask_=include', [includedFields], ([fields]) => {
   const decided = decodeIncludeMask(includeArg(fields))

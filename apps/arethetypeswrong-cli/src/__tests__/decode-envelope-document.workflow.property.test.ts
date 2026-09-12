@@ -5,10 +5,16 @@ import {
   type Problem,
   ProblemSchema,
 } from '@systemfsoftware/arethetypeswrong'
-import { Result, Schema } from 'effect'
+import { Match, Predicate, Result, Schema } from 'effect'
 import * as fc from 'effect/testing/FastCheck'
 
-import { decideEnvelope, decodeEnvelope } from '../Envelope.js'
+import {
+  decodeEnvelopeDocument,
+  EnvelopeDocumentCommand,
+  type OkEnvelope,
+  OkEnvelopeSchema,
+} from '../decode-envelope-document.workflow.js'
+import { decideEnvelope } from '../envelope-document.js'
 import { computeExitCode } from '../GetExitCode.js'
 import { ComputeExitCodeCommand } from '../GetExitCode.schema.js'
 import { decideMask, defaultEnvelopeMask, type EnvelopeMaskField, EnvelopeMaskFields } from '../Mask.js'
@@ -67,6 +73,8 @@ const problemsValue: fc.Arbitrary<unknown> = fc.oneof(
   fc.integer(),
 )
 
+const okEnvelope: fc.Arbitrary<OkEnvelope> = Schema.toArbitrary(OkEnvelopeSchema)(fc)
+
 it.prop('∀ignores_UntypedEnvelope_=exit0∧∌problems', [ignores], ([ignored]) => {
   const untyped: CheckResult = { packageName: 'pkg', packageVersion: '1.0.0', types: false }
   const decision = envelopeFor(untyped, ignored, false)
@@ -118,8 +126,32 @@ it.prop('∀problem_TracesIncluded_=problem', [problem], ([problem]) => {
 
 it.prop('∀value_DecodeUntypedEnvelope_=refused', [problemsValue], ([value]) => {
   const untyped = { status: 'untyped', packageName: 'pkg', packageVersion: '1.0.0', types: false } as const
-  return Result.isSuccess(decodeEnvelope(untyped)) && Result.isFailure(decodeEnvelope({ ...untyped, problems: value }))
+  return Result.match(decodeEnvelopeDocument(new EnvelopeDocumentCommand({ value: untyped })), {
+    onSuccess: (decision) => Predicate.isTagged(decision, 'UntypedEnvelopeAccepted'),
+    onFailure: () => false,
+  }) &&
+    Result.isFailure(decodeEnvelopeDocument(new EnvelopeDocumentCommand({ value: { ...untyped, problems: value } })))
 })
+
+it.prop(
+  '∀document_OkEnvelope_=OkEnvelopeAccepted',
+  [okEnvelope],
+  ([document]) =>
+    Result.match(decodeEnvelopeDocument(new EnvelopeDocumentCommand({ value: document })), {
+      onSuccess: (decision) =>
+        Match.value(decision).pipe(
+          Match.tag('OkEnvelopeAccepted', ({ document: accepted }) =>
+            accepted.packageName === document.packageName &&
+            accepted.packageVersion === document.packageVersion &&
+            JSON.stringify(accepted.types) === JSON.stringify(document.types) &&
+            JSON.stringify(accepted.problemCounts) === JSON.stringify(document.problemCounts) &&
+            accepted.problems.length === document.problems.length),
+          Match.tag('UntypedEnvelopeAccepted', () => false),
+          Match.exhaustive,
+        ),
+      onFailure: () => false,
+    }),
+)
 
 it.prop('∀include_MaskDecide_=defaultMask∪include', [fc.array(maskField, { maxLength: 4 })], ([include]) => {
   const decided = decideMask(include)

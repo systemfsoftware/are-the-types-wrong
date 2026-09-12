@@ -4,27 +4,41 @@ import {
   type CheckResult,
   PackageStore,
   PackageStoreStub,
+  parsePackageSpec,
   type ResolutionKind,
 } from '@systemfsoftware/arethetypeswrong'
-import { Effect, Layer, Schema as S } from 'effect'
+import { Effect, Layer, Option, Predicate, Result, Schema as S } from 'effect'
 import * as Cause from 'effect/Cause'
 import { ChildProcessSpawner } from 'effect/unstable/process/ChildProcessSpawner'
 
-import { decideEnvelope } from './Envelope.js'
-import { classifyRegistryFailure } from './Failure.js'
-import { AnalysisFailed, type AttwFailure, ConfigInvalid, PackFailed, RegistryBadResponse } from './Failure.schema.js'
+import {
+  classifyRegistryFailure,
+  ClassifyRegistryFailureCommand,
+  RegistryNoResponseObserved,
+  RegistryStatusObserved,
+  RegistryUnreadableShapeObserved,
+} from './classify-registry-failure.workflow.js'
+import { decideEnvelope } from './envelope-document.js'
+import {
+  AnalysisFailed,
+  type AttwFailure,
+  ConfigInvalid,
+  PackFailed,
+  RegistryBadResponse,
+  TargetNotPackable,
+} from './Failure.schema.js'
 import { CliFilesystem as Filesystem } from './FilesystemAdapter.js'
-import { hintsFor, renderHints } from './Hints.js'
+import { renderHints } from './hint-shaping.js'
 import { decodeIncludeMask } from './Mask.js'
-import { buildManifestUrl, decodePackageSpec, decodeTargetShape, targetNotPackable } from './PackageSpec.js'
+import { DecideHintsCommand, offerRecoveryHints, RunHintsRequest } from './offer-recovery-hints.workflow.js'
 import { PackRunner } from './PackRunnerAdapter.js'
 import { applyProfile, type CliProfileName } from './Profiles.js'
 import { ApplyProfileCommand } from './Profiles.schema.js'
 import { RegistryDocument } from './Registry.schema.js'
-import { decodePayloadSize, decodeRegistryUrl, type PayloadKind } from './RegistryUrl.js'
+import { buildManifestUrl, decodePayloadSize, decodeRegistryUrl, type PayloadKind } from './RegistryUrl.js'
 import { renderAnalysisForMode } from './Render.js'
-import { decideRenderMode } from './RenderMode.js'
-import { DecideRenderModeCommand, type RequestedFormat } from './RenderMode.schema.js'
+import { resolveAcquisitionSource, ResolveAcquisitionSourceCommand } from './resolve-acquisition-source.workflow.js'
+import { DecideRenderModeCommand, type RequestedFormat, selectRenderMode } from './select-render-mode.workflow.js'
 import { Terminal } from './TerminalAdapter.js'
 
 export interface CliRequest {
@@ -99,12 +113,22 @@ const boundPayload = (kind: PayloadKind, byteLength: number): Effect.Effect<void
 const fetchRegistryResponse = (url: string): Effect.Effect<Response, AttwFailure> =>
   Effect.tryPromise({
     try: (signal) => fetch(url, { signal }),
-    catch: () => classifyRegistryFailure({ kind: 'no-response' }),
+    catch: () =>
+      Result.getOrThrow(
+        classifyRegistryFailure(new ClassifyRegistryFailureCommand({ observation: new RegistryNoResponseObserved() })),
+      ),
   }).pipe(
     Effect.timeout('60 seconds'),
     Effect.catchIf(
       (error): error is Cause.TimeoutError => Cause.isTimeoutError(error),
-      () => Effect.fail(classifyRegistryFailure({ kind: 'no-response' })),
+      () =>
+        Effect.fail(
+          Result.getOrThrow(
+            classifyRegistryFailure(
+              new ClassifyRegistryFailureCommand({ observation: new RegistryNoResponseObserved() }),
+            ),
+          ),
+        ),
     ),
   )
 
@@ -114,7 +138,12 @@ const readBoundedBody = (response: Response, kind: PayloadKind): Effect.Effect<U
     if (Number.isFinite(declared)) yield* boundPayload(kind, declared)
     const bytes = yield* Effect.tryPromise({
       try: async () => new Uint8Array(await response.arrayBuffer()),
-      catch: () => classifyRegistryFailure({ kind: 'no-response' }),
+      catch: () =>
+        Result.getOrThrow(
+          classifyRegistryFailure(
+            new ClassifyRegistryFailureCommand({ observation: new RegistryNoResponseObserved() }),
+          ),
+        ),
     })
     yield* boundPayload(kind, bytes.byteLength)
     return bytes
@@ -143,38 +172,76 @@ const acquireTarball = (
         ref: { packageName: target, packageVersion: 'local', tarballUrl: `file://${tarballPath}` },
       }
     }
-    const shape = yield* Effect.fromResult(
-      decodeTargetShape(target, { fromNpm: request.fromNpm === true }),
+    const source = yield* Effect.fromResult(
+      resolveAcquisitionSource(
+        new ResolveAcquisitionSourceCommand({
+          target,
+          fromNpm: request.fromNpm === true,
+          parsed: Result.match(parsePackageSpec(target), {
+            onFailure: () => Option.none(),
+            onSuccess: (spec) => Option.some(spec),
+          }),
+        }),
+      ),
     )
-    if (shape === 'tarball') {
-      const bytes = yield* fs.readBytes(target).pipe(Effect.mapError(targetNotPackable))
+    if (Predicate.isTagged(source, 'ExistingTarball')) {
+      const bytes = yield* fs.readBytes(target).pipe(Effect.mapError(() =>
+        new TargetNotPackable({
+          message: 'The target is not a package tarball this tool can read.',
+          recovery:
+            'Pass --pack with a directory, an existing .tgz path, or a package name with --from-npm, then rerun the same command.',
+        })
+      ))
       return {
         bytes,
         ref: { packageName: target, packageVersion: 'local', tarballUrl: `file://${target}` },
       }
     }
-    const spec = yield* Effect.fromResult(decodePackageSpec(target))
+    const spec = source.spec
     const registryBase = yield* registryBaseFrom(request.registry)
     const manifestResponse = yield* fetchRegistryResponse(buildManifestUrl(registryBase, spec))
     if (!manifestResponse.ok) {
       return yield* Effect.fail(
-        classifyRegistryFailure({ kind: 'http-status', status: manifestResponse.status }),
+        Result.getOrThrow(
+          classifyRegistryFailure(
+            new ClassifyRegistryFailureCommand({
+              observation: new RegistryStatusObserved({ status: manifestResponse.status }),
+            }),
+          ),
+        ),
       )
     }
     const manifestBytes = yield* readBoundedBody(manifestResponse, 'registry-document')
     const registry = yield* S.decodeUnknownEffect(S.fromJsonString(RegistryDocument))(
       new TextDecoder().decode(manifestBytes),
     ).pipe(
-      Effect.mapError(() => classifyRegistryFailure({ kind: 'unexpected-shape' })),
+      Effect.mapError(() =>
+        Result.getOrThrow(
+          classifyRegistryFailure(
+            new ClassifyRegistryFailureCommand({ observation: new RegistryUnreadableShapeObserved() }),
+          ),
+        )
+      ),
     )
     const tarballUrl = yield* tarballUrlFrom(registry.dist.tarball)
     const tarballResponse = yield* Effect.tryPromise({
       try: async () => await fetch(tarballUrl),
-      catch: () => classifyRegistryFailure({ kind: 'no-response' }),
+      catch: () =>
+        Result.getOrThrow(
+          classifyRegistryFailure(
+            new ClassifyRegistryFailureCommand({ observation: new RegistryNoResponseObserved() }),
+          ),
+        ),
     })
     if (!tarballResponse.ok) {
       return yield* Effect.fail(
-        classifyRegistryFailure({ kind: 'http-status', status: tarballResponse.status }),
+        Result.getOrThrow(
+          classifyRegistryFailure(
+            new ClassifyRegistryFailureCommand({
+              observation: new RegistryStatusObserved({ status: tarballResponse.status }),
+            }),
+          ),
+        ),
       )
     }
     const tarballBytes = yield* readBoundedBody(tarballResponse, 'tarball')
@@ -217,13 +284,15 @@ export const runAttw = (
     )
     const result = yield* checkEffect
     const prepared = prepareAnalysis(request, result)
-    const mode = decideRenderMode(
-      new DecideRenderModeCommand({
-        isTty: terminal.isTty,
-        terminalWidth: terminal.width,
-        format: request.format ?? 'auto',
-        quiet: request.quiet ?? false,
-      }),
+    const mode = Result.getOrThrow(
+      selectRenderMode(
+        new DecideRenderModeCommand({
+          isTty: terminal.isTty,
+          terminalWidth: terminal.width,
+          requestedFormat: request.format ?? 'auto',
+          quiet: request.quiet ?? false,
+        }),
+      ),
     ).mode
     const envelope = decideEnvelope({
       result: prepared.result,
@@ -238,17 +307,23 @@ export const runAttw = (
       useEmoji: request.emoji ?? true,
     }, envelope.document)
     if (output !== '') yield* terminal.stdout.write(output)
-    const hints = renderHints(
-      hintsFor({
-        kind: 'run',
-        document: envelope.document,
-        mode,
-        isTty: terminal.isTty,
-        include,
-        mask,
-      }),
+    const hintDecision = Result.getOrThrow(
+      offerRecoveryHints(
+        new DecideHintsCommand({
+          request: new RunHintsRequest({
+            document: envelope.document,
+            mode,
+            isTty: terminal.isTty,
+            include,
+            mask,
+          }),
+        }),
+      ),
     )
-    if (hints !== '') yield* terminal.stderr.write(hints)
+    if (Predicate.isTagged(hintDecision, 'HintsOffered')) {
+      const hints = renderHints(hintDecision.hints)
+      if (hints !== '') yield* terminal.stderr.write(hints)
+    }
     return envelope.exitCode
   })
 

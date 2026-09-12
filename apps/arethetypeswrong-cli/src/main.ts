@@ -10,9 +10,9 @@ import { layer as cliConfigLayerFactory } from 'effect/unstable/cli/CliConfig'
 
 import { AttwConfigFileLayer } from './AttwConfigExecutor.js'
 import { renderFailure, runCli } from './AttwHandler.js'
+import { cliVersion } from './cli-version.js'
 import { FilesystemLive } from './FilesystemAdapter.js'
 import { PackRunnerLive } from './PackRunnerAdapter.js'
-import { cliVersion } from './SchemaCommand.js'
 import { TerminalLive } from './TerminalAdapter.js'
 
 const cliConfigLayer = Layer.provideMerge(cliConfigLayerFactory(), AttwConfigFileLayer)

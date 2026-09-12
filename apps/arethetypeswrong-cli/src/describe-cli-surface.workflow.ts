@@ -1,36 +1,73 @@
-import { Effect } from 'effect'
-import * as JsonSchema from 'effect/JsonSchema'
+import { Workflow } from '@systemfsoftware/effect-cell-types'
+import { Match, Option, Result } from 'effect'
 import * as S from 'effect/Schema'
-import * as Command from 'effect/unstable/cli/Command'
 
-import manifest from '../package.json'
-import { CliInputSchema } from './CliInput.schema.js'
-import { MachineEnvelopeSchema } from './Envelope.schema.js'
-import { renderJson } from './RenderJson.js'
-import { Terminal } from './TerminalAdapter.js'
+const schemaUsageRecovery =
+  '`attw schema` takes no arguments. Run `attw --help` to see the accepted commands and flags.'
 
-/**
- * The version the bundler inlines from the manifest (`tsdown` replaces the
- * import), because the npm package ships no `package.json` for a runtime read.
- */
-export const cliVersion: string = manifest.version
+const SchemaSurfaceDecisionTypeId: unique symbol = Symbol.for(
+  '@systemfsoftware/arethetypeswrong-cli/SchemaSurfaceDecision',
+)
+type SchemaSurfaceDecisionTypeId = typeof SchemaSurfaceDecisionTypeId
 
-export interface SchemaDocument {
-  readonly version: string
-  readonly input: JsonSchema.Document<'draft-2020-12'>
-  readonly envelope: JsonSchema.Document<'draft-2020-12'>
+export class RenderSchemaDocumentCommand extends S.Class<RenderSchemaDocumentCommand>(
+  'RenderSchemaDocumentCommand',
+)({
+  version: S.String,
+  target: S.Option(S.String),
+}) {}
+
+export class SchemaRendered extends S.TaggedClass<SchemaRendered>()('SchemaRendered', { version: S.String }) {
+  readonly [SchemaSurfaceDecisionTypeId] = SchemaSurfaceDecisionTypeId
 }
 
-export const buildSchemaDocument = (version: string): SchemaDocument => ({
-  version,
-  input: S.toJsonSchemaDocument(CliInputSchema),
-  envelope: S.toJsonSchemaDocument(MachineEnvelopeSchema),
-})
+export class SchemaUsageRefused extends S.TaggedClass<SchemaUsageRefused>()('SchemaUsageRefused', {
+  recovery: S.String,
+}) {
+  readonly [SchemaSurfaceDecisionTypeId] = SchemaSurfaceDecisionTypeId
+}
 
-export const renderSchemaDocument = (document: SchemaDocument): string => renderJson(document, { pretty: false }) + '\n'
+export class SchemaVersionUnusable extends S.TaggedError<SchemaVersionUnusable>()('SchemaVersionUnusable', {
+  version: S.String,
+}) {
+  readonly [SchemaSurfaceDecisionTypeId] = SchemaSurfaceDecisionTypeId
+}
 
-export const schemaCommand = Command.make('schema', {}, () =>
-  Effect.gen(function*() {
-    const terminal = yield* Terminal
-    yield* terminal.stdout.write(renderSchemaDocument(buildSchemaDocument(cliVersion)))
-  }))
+export type SchemaSurfaceDecision = SchemaRendered | SchemaUsageRefused
+
+const targetPresenceSchema = S.Literals(['absent', 'present'])
+
+type TargetPresence = S.Schema.Type<typeof targetPresenceSchema>
+
+const targetPresence = (target: Option.Option<string>): TargetPresence =>
+  Match.value(Option.isSome(target)).pipe(
+    Match.when(true, (): TargetPresence => 'present'),
+    Match.when(false, (): TargetPresence => 'absent'),
+    Match.exhaustive,
+  )
+
+const versionUsabilitySchema = S.Literals(['unusable', 'usable'])
+
+type VersionUsability = S.Schema.Type<typeof versionUsabilitySchema>
+
+const versionUsability = (version: string): VersionUsability =>
+  Match.value(version.trim().length > 0).pipe(
+    Match.when(true, (): VersionUsability => 'usable'),
+    Match.when(false, (): VersionUsability => 'unusable'),
+    Match.exhaustive,
+  )
+
+export const describeCliSurface = Workflow.make(
+  RenderSchemaDocumentCommand,
+  (command): Result.Result<SchemaSurfaceDecision, SchemaVersionUnusable> =>
+    Match.value(targetPresence(command.target)).pipe(
+      Match.when('present', () => Result.succeed(new SchemaUsageRefused({ recovery: schemaUsageRecovery }))),
+      Match.when('absent', () =>
+        Match.value(versionUsability(command.version)).pipe(
+          Match.when('usable', () => Result.succeed(new SchemaRendered({ version: command.version }))),
+          Match.when('unusable', () => Result.fail(new SchemaVersionUnusable({ version: command.version }))),
+          Match.exhaustive,
+        )),
+      Match.exhaustive,
+    ),
+)

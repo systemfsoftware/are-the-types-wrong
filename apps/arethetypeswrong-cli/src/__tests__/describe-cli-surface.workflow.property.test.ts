@@ -1,12 +1,18 @@
 import { it } from '@effect/vitest'
-import { Result, Schema } from 'effect'
+import { Match, Option, Result, Schema } from 'effect'
 import * as fc from 'effect/testing/FastCheck'
 
 import { analyzeFlags } from '../AttwHandler.js'
+import { cliVersion } from '../cli-version.js'
 import { CliInputSchema } from '../CliInput.schema.js'
-import { decodeEnvelope } from '../Envelope.js'
-import { type MachineEnvelope, MachineEnvelopeSchema } from '../Envelope.schema.js'
-import { buildSchemaDocument, cliVersion } from '../SchemaCommand.js'
+import {
+  decodeEnvelopeDocument,
+  EnvelopeDocumentCommand,
+  type MachineEnvelope,
+  MachineEnvelopeSchema,
+} from '../decode-envelope-document.workflow.js'
+import { describeCliSurface, RenderSchemaDocumentCommand } from '../describe-cli-surface.workflow.js'
+import { buildSchemaDocument } from '../schema-command.js'
 
 const document = buildSchemaDocument(cliVersion)
 const inputText = JSON.stringify(document.input)
@@ -35,7 +41,11 @@ it.prop(
   ([name]) => name in analyzeFlags,
 )
 
-it.prop('∀envelope_DecodeEnvelope_=satisfied', [envelope], ([value]) => Result.isSuccess(decodeEnvelope(value)))
+it.prop(
+  '∀envelope_DecodeEnvelope_=satisfied',
+  [envelope],
+  ([value]) => Result.isSuccess(decodeEnvelopeDocument(new EnvelopeDocumentCommand({ value }))),
+)
 
 it.prop('∀envelope_EnvelopeSchema_∈status', [envelope], ([value]) => envelopeText.includes(`"${value.status}"`))
 
@@ -50,3 +60,31 @@ it.prop(
   [fc.string()],
   ([version]) => buildSchemaDocument(version).version === version,
 )
+
+it.prop('∀version_SchemaSurface_=rendered∨unusable', [fc.string()], ([version]) =>
+  Result.match(
+    describeCliSurface(new RenderSchemaDocumentCommand({ version, target: Option.none() })),
+    {
+      onSuccess: (decision) =>
+        Match.value(decision).pipe(
+          Match.tag('SchemaRendered', ({ version: rendered }) => version.trim().length > 0 && rendered === version),
+          Match.tag('SchemaUsageRefused', () => false),
+          Match.exhaustive,
+        ),
+      onFailure: (refusal) => version.trim().length === 0 && refusal.version === version,
+    },
+  ))
+
+it.prop('∀target_SchemaSurface_=UsageRefused', [fc.string()], ([target]) =>
+  Result.match(
+    describeCliSurface(new RenderSchemaDocumentCommand({ version: cliVersion, target: Option.some(target) })),
+    {
+      onSuccess: (decision) =>
+        Match.value(decision).pipe(
+          Match.tag('SchemaUsageRefused', ({ recovery }) => recovery.length > 0),
+          Match.tag('SchemaRendered', () => false),
+          Match.exhaustive,
+        ),
+      onFailure: () => false,
+    },
+  ))
