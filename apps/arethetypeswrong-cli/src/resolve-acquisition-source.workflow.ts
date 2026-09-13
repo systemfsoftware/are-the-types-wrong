@@ -1,6 +1,6 @@
 import { type ParsedPackageSpec, ParsedPackageSpecSchema } from '@systemfsoftware/arethetypeswrong'
 import { Workflow } from '@systemfsoftware/effect-cell-types'
-import { Array, Match, Option, Result } from 'effect'
+import { Array, Match, Option, Predicate, Result } from 'effect'
 import * as S from 'effect/Schema'
 
 const acceptedSpecShape = 'Expected `pkg`, `pkg@1.2.3`, `pkg@^1.2.3`, `pkg@next`, or `@scope/pkg`.'
@@ -54,7 +54,7 @@ const specRefinements: readonly Refinement<string>[] = [
       refuse('The package spec contains an ASCII control character.', 'Remove it and rerun the same command.'),
   },
   {
-    test: (raw) => raw.includes('?') || raw.includes('#'),
+    test: (raw) => ['?', '#'].some((marker) => raw.includes(marker)),
     refusal: () =>
       refuse(
         'The package spec contains a URL query or fragment marker.',
@@ -81,9 +81,13 @@ const specRefinements: readonly Refinement<string>[] = [
 
 const distTag = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
+const isTagVersionKind = (spec: ParsedPackageSpec): boolean => spec.versionKind === 'tag'
+
+const isDistTagVersion = (spec: ParsedPackageSpec): boolean => distTag.test(spec.version)
+
 const parsedSpecRefinements: readonly Refinement<ParsedPackageSpec>[] = [
   {
-    test: (spec) => spec.versionKind === 'tag' && !distTag.test(spec.version),
+    test: Predicate.and(isTagVersionKind, Predicate.not(isDistTagVersion)),
     refusal: () =>
       refuse(
         'The version in the package spec is neither an exact version, a range, nor a dist-tag.',
