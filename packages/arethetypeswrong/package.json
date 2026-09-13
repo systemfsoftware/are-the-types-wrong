@@ -55,9 +55,9 @@
     "@effect/vitest": "catalog:",
     "@systemfsoftware/all": "catalog:",
     "@systemfsoftware/arethetypeswrong-cli": "catalog:",
-    "@systemfsoftware/arethetypeswrong-recipes": "workspace:^",
     "@systemfsoftware/arethetypeswrong-published": "npm:@systemfsoftware/arethetypeswrong@7.0.0",
-    "@systemfsoftware/effect-cell-types": "^6.0.1",
+    "@systemfsoftware/arethetypeswrong-recipes": "workspace:^",
+    "@systemfsoftware/effect-cell-types": "catalog:",
     "@systemfsoftware/effect-gherkin-spec": "catalog:",
     "@systemfsoftware/effect-memfs": "catalog:",
     "@systemfsoftware/effect-schema-law": "catalog:",
@@ -83,6 +83,6 @@
     "node": ">=24"
   },
   "inlinedDependencies": {
-    "@systemfsoftware/effect-cell-types": "6.0.1"
+    "@systemfsoftware/effect-cell-types": "7.0.0"
   }
 }

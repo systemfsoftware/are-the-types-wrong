@@ -9,23 +9,24 @@ catalog:
   "@commitlint/cli": ^21.2.2
   "@commitlint/config-conventional": ^21.2.2
   "@commitlint/types": ^21.2.0
-  # Effect is held at rc.112 for the whole tree (see `overrides` below): rc.115 dropped
-  # `Flag.string`, which stryker-js-cli@6.0.0 (current major) calls on import, so floating Effect
-  # alone crashes `pnpm mutation`. Move Effect and the @systemfsoftware packages built against it
-  # together, in a coordinated upgrade.
+  # Every @systemfsoftware library declares `effect: 4.0.0-rc.112` exactly (checked at
+  # effect-cell-types@7.0.0, effect-schema-law@2.1.0, stryker-js-cli@7.0.1, all@2.0.0), and
+  # @effect/vitest@rc.112 peers `vitest >=4.1.0 <5.0.0`. The override keeps transitive consumers
+  # (whose ranges admit rc.115) off a runtime their compiled code does not target.
   "@effect/platform-node": 4.0.0-rc.112
   "@effect/platform-node-shared": 4.0.0-rc.112
   "@effect/vitest": 4.0.0-rc.112
   "@loaderkit/resolve": ^1.0.6
-  "@systemfsoftware/all": ^1.1.3
+  "@systemfsoftware/all": ^2.0.0
   "@systemfsoftware/arethetypeswrong-cli": ^4.1.0
+  "@systemfsoftware/effect-cell-types": ^7.0.0
   "@systemfsoftware/effect-gherkin-spec": ^4.0.1
   "@systemfsoftware/effect-memfs": ^1.3.4
-  "@systemfsoftware/effect-schema-law": 2.0.2
-  "@systemfsoftware/effect-schema-vite": 2.0.3
+  "@systemfsoftware/effect-schema-law": ^2.1.0
+  "@systemfsoftware/effect-schema-vite": ^2.1.0
   "@systemfsoftware/npm-package": ^0.2.2
-  "@systemfsoftware/oxlint-plugin-effect-dmmf": 5.3.0
-  "@systemfsoftware/stryker-js-cli": ^6.0.0
+  "@systemfsoftware/oxlint-plugin-effect-dmmf": ^5.4.0
+  "@systemfsoftware/stryker-js-cli": ^7.0.1
   "@systemfsoftware/stryker-js-typescript-checker": ^5.0.2
   "@systemfsoftware/stryker-js-vitest-runner": ^4.0.2
   "@systemfsoftware/stryker-plugins": ^3.0.1
@@ -62,9 +63,6 @@ packages:
   - packages/arethetypeswrong/*
 
 overrides:
-  # stryker-js-cli@6.0.0 declares `effect: ^4.0.0-rc.112`, a range that admits the
-  # Flag.string-less rc.115; without this override the re-resolve gives it its own rc.115 copy
-  # and the mutation lane dies on import.
   effect: 4.0.0-rc.112
   "@effect/platform-node": 4.0.0-rc.112
   "@effect/platform-node-shared": 4.0.0-rc.112
