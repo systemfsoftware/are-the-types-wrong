@@ -1,3 +1,4 @@
+import type { ModuleFormat } from '@loaderkit/resolve/esm'
 import type { Package } from '@systemfsoftware/npm-package'
 import type { Exports } from 'cjs-module-lexer'
 import { getCjsModuleNamespace } from './CjsNamespace.js'
@@ -7,38 +8,58 @@ import { esmResolve } from './Resolve.js'
 // Note: this doesn't handle ambiguous indirect exports which probably isn't worth the
 // implementation complexity.
 
-/** @internal */
-export function getEsmModuleNamespace(
-  fs: Package,
-  specifier: string,
-  parentURL = new URL('file:///'),
-  seen = new Set<string>(),
-): string[] {
-  // Resolve specifier
-  const { format, url } = esmResolve(fs, specifier, parentURL)
+const defaultOnlyBindings: Exports = { exports: ['default'], reexports: [] }
 
-  // Don't recurse for circular indirect exports
-  if (seen.has(url.pathname)) {
-    return []
-  }
-  seen.add(url.pathname)
+function resolveSeen(seen: Set<string> | undefined): Set<string> {
+  return seen ?? new Set<string>()
+}
 
-  if (format === 'commonjs') {
-    return [...getCjsModuleNamespace(fs, url)]
-  }
+function isEsmModuleFormat(format: ModuleFormat | undefined): boolean {
+  return (format ?? 'module') === 'module'
+}
 
-  // Parse module bindings
-  let bindings: Exports
-  if ((format ?? 'module') === 'module') {
-    bindings = getEsmModuleBindings(fs.readFile(url.pathname))
-  } else {
-    // Maybe JSON, WASM, etc
-    bindings = { exports: ['default'], reexports: [] }
+function readModuleBindings(fs: Package, url: URL, format: ModuleFormat | undefined): Exports {
+  if (!isEsmModuleFormat(format)) {
+    return defaultOnlyBindings
   }
+  return getEsmModuleBindings(fs.readFile(url.pathname))
+}
+
+function readModuleNamespace(fs: Package, url: URL, format: ModuleFormat | undefined, seen: Set<string>): string[] {
+  const bindings = readModuleBindings(fs, url, format)
 
   // Concat indirect exports
   const indirect = bindings.reexports
     .flatMap((specifier) => getEsmModuleNamespace(fs, specifier, url, seen))
     .filter((name) => name !== 'default')
   return [...new Set([...bindings.exports, ...indirect])]
+}
+
+function resolvedModuleNamespace(fs: Package, url: URL, format: ModuleFormat | undefined, seen: Set<string>): string[] {
+  seen.add(url.pathname)
+
+  if (format === 'commonjs') {
+    return [...getCjsModuleNamespace(fs, url)]
+  }
+  return readModuleNamespace(fs, url, format, seen)
+}
+
+function getEsmModuleNamespaceFrom(fs: Package, specifier: string, parentURL: URL, seen: Set<string>): string[] {
+  const { format, url } = esmResolve(fs, specifier, parentURL)
+
+  // Don't recurse for circular indirect exports
+  if (seen.has(url.pathname)) {
+    return []
+  }
+  return resolvedModuleNamespace(fs, url, format, seen)
+}
+
+/** @internal */
+export function getEsmModuleNamespace(
+  fs: Package,
+  specifier: string,
+  parentURL = new URL('file:///'),
+  seen?: Set<string>,
+): string[] {
+  return getEsmModuleNamespaceFrom(fs, specifier, parentURL, resolveSeen(seen))
 }

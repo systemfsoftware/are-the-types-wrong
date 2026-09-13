@@ -6,48 +6,53 @@ allowBuilds:
   sharp: false
   ssh2: false
 catalog:
-  "@commitlint/cli": ^21.2.1
-  "@commitlint/config-conventional": ^21.2.0
+  "@commitlint/cli": ^21.2.2
+  "@commitlint/config-conventional": ^21.2.2
   "@commitlint/types": ^21.2.0
-  "@effect/platform-node": ^4.0.0-rc.112
-  "@effect/platform-node-shared": ^4.0.0-rc.112
-  "@effect/vitest": ^4.0.0-rc.112
-  "@loaderkit/resolve": ^1.0.2
-  "@systemfsoftware/all": ^1.1.3
-  "@systemfsoftware/arethetypeswrong-cli": ^4.0.0
+  # Every @systemfsoftware library declares `effect: 4.0.0-rc.112` exactly (checked at
+  # effect-cell-types@7.0.0, effect-schema-law@2.1.0, stryker-js-cli@7.0.1, all@2.0.0), and
+  # @effect/vitest@rc.112 peers `vitest >=4.1.0 <5.0.0`. The override keeps transitive consumers
+  # (whose ranges admit rc.115) off a runtime their compiled code does not target.
+  "@effect/platform-node": 4.0.0-rc.112
+  "@effect/platform-node-shared": 4.0.0-rc.112
+  "@effect/vitest": 4.0.0-rc.112
+  "@loaderkit/resolve": ^1.0.6
+  "@systemfsoftware/all": ^2.0.0
+  "@systemfsoftware/arethetypeswrong-cli": ^4.1.0
+  "@systemfsoftware/effect-cell-types": ^7.0.0
   "@systemfsoftware/effect-gherkin-spec": ^4.0.1
   "@systemfsoftware/effect-memfs": ^1.3.4
-  "@systemfsoftware/effect-schema-law": ^2.0.2
-  "@systemfsoftware/effect-schema-vite": ^2.0.3
+  "@systemfsoftware/effect-schema-law": ^2.1.0
+  "@systemfsoftware/effect-schema-vite": ^2.1.0
   "@systemfsoftware/npm-package": ^0.2.2
-  "@systemfsoftware/oxlint-plugin-effect-dmmf": ^5.3.0
-  "@systemfsoftware/stryker-js-cli": ^6.0.0
-  "@systemfsoftware/stryker-js-typescript-checker": ^5.0.0
-  "@systemfsoftware/stryker-js-vitest-runner": ^4.0.0
-  "@systemfsoftware/stryker-plugins": ^3.0.0
-  "@systemfsoftware/stryker-test-contribution": ^2.0.0
+  "@systemfsoftware/oxlint-plugin-effect-dmmf": ^5.4.0
+  "@systemfsoftware/stryker-js-cli": ^7.0.1
+  "@systemfsoftware/stryker-js-typescript-checker": ^5.0.2
+  "@systemfsoftware/stryker-js-vitest-runner": ^4.0.2
+  "@systemfsoftware/stryker-plugins": ^3.0.1
+  "@systemfsoftware/stryker-test-contribution": ^2.0.1
   "@systemfsoftware/tsconfig": ^1.3.3
-  "@types/node": ^24
-  "@types/semver": ^7.5.0
-  "@types/validate-npm-package-name": ^4.0.0
-  "@vitest/coverage-v8": ^4
-  "@vitest/snapshot": ^4
+  "@types/node": ^24.13.4
+  "@types/semver": ^7.8.0
+  "@types/validate-npm-package-name": ^4.0.2
+  "@vitest/coverage-v8": ^4.1.11
+  "@vitest/snapshot": ^4.1.11
   cjs-module-lexer: ^2.2.1
-  effect: ^4.0.0-rc.112
-  fast-check: ^4
+  effect: 4.0.0-rc.112
+  fast-check: ^4.10.0
   husky: ^9.1.7
-  lint-staged: ^17.1.0
-  oxlint: ^1.77.0
+  lint-staged: ^17.5.1
+  oxlint: ^1.82.0
   oxlint-tsgolint: 7.0.2001
   rimraf: ^6.1.3
-  semver: ^7.5.4
+  semver: ^7.8.5
   testcontainers: ^12.1.0
   tsdown: ^0.23.0
   turbo: ^2.10.12
-  typescript: ^7
+  typescript: ^7.0.2
   validate-npm-package-name: ^8.0.0
   vite-tsconfig-paths: ^6.1.1
-  vitest: ^4
+  vitest: ^4.1.11
 catalogMode: prefer
 catalogs:
   attw:
@@ -56,3 +61,9 @@ packages:
   - apps/*
   - packages/*
   - packages/arethetypeswrong/*
+
+overrides:
+  effect: 4.0.0-rc.112
+  "@effect/platform-node": 4.0.0-rc.112
+  "@effect/platform-node-shared": 4.0.0-rc.112
+  "@effect/vitest": 4.0.0-rc.112

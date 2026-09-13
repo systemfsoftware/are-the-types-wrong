@@ -1,4 +1,4 @@
-import { createPackageFromTarballData } from '@systemfsoftware/npm-package'
+import { createPackageFromTarballData, type Package } from '@systemfsoftware/npm-package'
 import { Context, Effect, Layer } from 'effect'
 
 export interface TarballFile {
@@ -53,20 +53,24 @@ export const TarballAdapterStub = (
 function extractTarball(tarball: Uint8Array): ExtractedTarball {
   const pkg = createPackageFromTarballData(tarball)
   const packageName = pkg.packageName
-  const packageVersion = pkg.packageVersion
   const packageJsonPath = `/node_modules/${packageName}/package.json`
-  const files: TarballFile[] = []
-  for (const path of pkg.listFiles()) {
-    if (path === packageJsonPath) continue
-    const raw = pkg.tryReadBytes(path)
-    if (raw === undefined) continue
-    let content: Uint8Array
-    if (typeof raw === 'string') {
-      content = new TextEncoder().encode(raw)
-    } else {
-      content = raw
-    }
-    files.push({ path, content })
+  const files = pkg.listFiles()
+    .filter((path) => path !== packageJsonPath)
+    .flatMap((path) => collectTarballFile(pkg, path))
+  return { packageName, packageVersion: pkg.packageVersion, files }
+}
+
+function collectTarballFile(pkg: Package, path: string): TarballFile[] {
+  const raw = pkg.tryReadBytes(path)
+  if (raw === undefined) {
+    return []
   }
-  return { packageName, packageVersion, files }
+  return [{ path, content: toBytes(raw) }]
+}
+
+function toBytes(raw: string | Uint8Array): Uint8Array {
+  if (typeof raw === 'string') {
+    return new TextEncoder().encode(raw)
+  }
+  return raw
 }

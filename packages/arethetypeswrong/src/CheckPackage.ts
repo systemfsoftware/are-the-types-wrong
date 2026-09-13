@@ -1,8 +1,8 @@
 import type { Package } from '@systemfsoftware/npm-package'
 import { init as initCjsLexer } from 'cjs-module-lexer'
-import { Effect, MutableHashMap, Option } from 'effect'
+import { Effect, Match, MutableHashMap, Option, Predicate } from 'effect'
 import checks from './internal/checks/index.js'
-import type { AnyCheck, CheckDependenciesContext } from './internal/DefineCheck.js'
+import type { AnyCheck, CheckDependenciesContext, CheckExecutionContext } from './internal/DefineCheck.js'
 import { getBuildTools, getEntrypointInfo, getModuleKinds } from './internal/GetEntrypointInfo.js'
 import { createCompilerHosts } from './internal/MultiCompilerHost.js'
 import type {
@@ -28,59 +28,108 @@ export interface CheckPackageOptions {
   entrypointsLegacy?: boolean
 }
 
+interface ResolutionCell {
+  readonly analysis: EntrypointResolutionAnalysis
+  readonly info: { readonly subpath: string }
+}
+
+const readPackageJson = (pkg: Package, packageName: string): unknown => {
+  const packageJson: unknown = JSON.parse(pkg.readFile(`/node_modules/${packageName}/package.json`))
+  return packageJson
+}
+
+const packageJsonField = (pkg: Package, packageName: string, field: string): unknown => {
+  const packageJson = readPackageJson(pkg, packageName)
+  if (!Predicate.isObject(packageJson)) return undefined
+  return packageJson[field]
+}
+
 const isStringRecord = (value: unknown): value is Record<string, string> => {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return false
-  }
+  if (!Predicate.isObject(value)) return false
   return Object.values(value).every((entry) => typeof entry === 'string')
 }
 
 function getHomepage(pkg: Package, packageName: string): string | undefined {
-  const packageJson: unknown = JSON.parse(pkg.readFile(`/node_modules/${packageName}/package.json`))
-  if (typeof packageJson !== 'object' || packageJson === null || !('homepage' in packageJson)) {
-    return undefined
-  }
-  if (typeof packageJson.homepage === 'string') {
-    return packageJson.homepage
-  }
-  return undefined
+  const homepage = packageJsonField(pkg, packageName, 'homepage')
+  if (typeof homepage !== 'string') return undefined
+  return homepage
 }
 
 function getDevDependencies(pkg: Package, packageName: string): { devDependencies?: Record<string, string> } {
-  const packageJson: unknown = JSON.parse(pkg.readFile(`/node_modules/${packageName}/package.json`))
-  if (typeof packageJson !== 'object' || packageJson === null || !('devDependencies' in packageJson)) {
-    return {}
-  }
-  if (isStringRecord(packageJson.devDependencies)) {
-    return { devDependencies: packageJson.devDependencies }
-  }
-  return {}
+  const devDependencies = packageJsonField(pkg, packageName, 'devDependencies')
+  if (!isStringRecord(devDependencies)) return {}
+  return { devDependencies }
 }
+
+const rejectFunctionDependency = (_: unknown, value: unknown): unknown => {
+  if (typeof value === 'function') {
+    throw new Error('Encountered unexpected function in check dependencies')
+  }
+  return value
+}
+
+const showProblems = (analysis: EntrypointResolutionAnalysis, indices: readonly number[]): void => {
+  ;(analysis.visibleProblems ??= []).push(...indices)
+}
+
+const singleOrNoProblem = (problem: Problem | undefined): readonly Problem[] => {
+  if (problem === undefined) return []
+  return [problem]
+}
+
+const problemListOf = (checkProblems: Problem[] | Problem | undefined): readonly Problem[] => {
+  if (Array.isArray(checkProblems)) return checkProblems
+  return singleOrNoProblem(checkProblems)
+}
+
+const recordProblems = (problems: Problem[], checkProblems: readonly Problem[]): readonly number[] => {
+  const indices: number[] = []
+  for (const problem of checkProblems) {
+    indices.push(problems.length)
+    problems.push(problem)
+  }
+  return indices
+}
+
+const filesToCheck = (analysis: EntrypointResolutionAnalysis): readonly string[] => analysis.files ?? []
+
+const gatherForCheck = (
+  check: AnyCheck,
+  dependencies: readonly unknown[],
+  context: CheckExecutionContext,
+): Effect.Effect<unknown> => {
+  if (check.gather === undefined) return Effect.succeed(undefined)
+  return check.gather(dependencies, context)
+}
+
+const unpackPackageInput = (
+  input: Package | PackageWithCompanion,
+): { readonly pkg: Package; readonly companion: TypesCompanionInfo | undefined } => {
+  if (isPackageWithCompanion(input)) return { pkg: input.pkg, companion: input.companion }
+  return { pkg: input, companion: undefined }
+}
+
+const hasIncludedTypes = (companion: TypesCompanionInfo | undefined, pkg: Package): boolean =>
+  companion === undefined && containsTypes(pkg)
+
+const analysisTypesOf = (companion: TypesCompanionInfo | undefined, pkg: Package): AnalysisTypes | false =>
+  Match.value({ companion, hasTypes: hasIncludedTypes(companion, pkg) }).pipe(
+    Match.when({ companion: Match.defined }, ({ companion }) => ({
+      kind: '@types' as const,
+      ...companion,
+      definitelyTypedUrl: getHomepage(pkg, companion.packageName),
+    })),
+    Match.when({ hasTypes: true }, () => ({ kind: 'included' as const })),
+    Match.orElse(() => false as const),
+  )
+
 export const checkPackage = (
   input: Package | PackageWithCompanion,
   options?: CheckPackageOptions,
 ): Effect.Effect<CheckResult, Error> =>
   Effect.gen(function*() {
-    let pkg: Package
-    let companion: TypesCompanionInfo | undefined
-    if (isPackageWithCompanion(input)) {
-      pkg = input.pkg
-      companion = input.companion
-    } else {
-      pkg = input
-    }
-    let types: AnalysisTypes | false
-    if (companion !== undefined) {
-      types = {
-        kind: '@types',
-        ...companion,
-        definitelyTypedUrl: getHomepage(pkg, companion.packageName),
-      }
-    } else if (containsTypes(pkg)) {
-      types = { kind: 'included' }
-    } else {
-      types = false
-    }
+    const { pkg, companion } = unpackPackageInput(input)
+    const types: AnalysisTypes | false = analysisTypesOf(companion, pkg)
     const { packageName, packageVersion } = pkg
     if (types === false) {
       return { packageName, packageVersion, types }
@@ -102,38 +151,13 @@ export const checkPackage = (
     const problems: Problem[] = []
     const problemIdsToIndices = MutableHashMap.empty<string, number[]>()
 
-    // Collect cells first because visitResolutions is pure and synchronous;
-    // we need an array to drive Effect.forEach over.
-    const cells: { analysis: EntrypointResolutionAnalysis; info: { subpath: string } }[] = []
+    // Collect cells first because visitResolutions is pure and synchronous.
+    const cells: ResolutionCell[] = []
     visitResolutions(entrypointResolutions, (analysis, info) => {
       cells.push({ analysis, info })
     })
 
-    yield* Effect.forEach(cells, ({ analysis, info }) =>
-      Effect.gen(function*() {
-        for (const check of checks) {
-          const context = {
-            pkg,
-            hosts,
-            entrypoints: entrypointResolutions,
-            programInfo,
-            subpath: info.subpath,
-            resolutionKind: analysis.resolutionKind,
-            resolutionOption: getResolutionOption(analysis.resolutionKind),
-            fileName: undefined,
-          }
-          if (check.enumerateFiles === true) {
-            for (const fileName of analysis.files ?? []) {
-              yield* runCheck(check, { ...context, fileName }, analysis)
-            }
-            if (analysis.implementationResolution) {
-              yield* runCheck(check, { ...context, fileName: analysis.implementationResolution.fileName }, analysis)
-            }
-          } else {
-            yield* runCheck(check, context, analysis)
-          }
-        }
-      }), { discard: true })
+    yield* Effect.forEach(cells, runChecksForCell, { discard: true })
 
     return {
       packageName,
@@ -145,6 +169,66 @@ export const checkPackage = (
       problems,
     }
 
+    function cellContext(
+      analysis: EntrypointResolutionAnalysis,
+      subpath: string,
+    ): CheckDependenciesContext<boolean> {
+      return {
+        pkg,
+        hosts,
+        entrypoints: entrypointResolutions,
+        programInfo,
+        subpath,
+        resolutionKind: analysis.resolutionKind,
+        resolutionOption: getResolutionOption(analysis.resolutionKind),
+        fileName: undefined,
+      }
+    }
+
+    function runChecksForCell(cell: ResolutionCell): Effect.Effect<void> {
+      return Effect.gen(function*() {
+        for (const check of checks) {
+          yield* runCheckForCell(check, cell)
+        }
+      })
+    }
+
+    function runCheckForCell(check: AnyCheck, cell: ResolutionCell): Effect.Effect<void> {
+      return Effect.gen(function*() {
+        const context = cellContext(cell.analysis, cell.info.subpath)
+        if (check.enumerateFiles === true) {
+          yield* runFileChecks(check, context, cell.analysis)
+          return
+        }
+        yield* runCheck(check, context, cell.analysis)
+      })
+    }
+
+    function runFileChecks(
+      check: AnyCheck,
+      context: CheckDependenciesContext<boolean>,
+      analysis: EntrypointResolutionAnalysis,
+    ): Effect.Effect<void> {
+      return Effect.gen(function*() {
+        for (const fileName of filesToCheck(analysis)) {
+          yield* runCheck(check, { ...context, fileName }, analysis)
+        }
+        yield* runImplementationCheck(check, context, analysis)
+      })
+    }
+
+    function runImplementationCheck(
+      check: AnyCheck,
+      context: CheckDependenciesContext<boolean>,
+      analysis: EntrypointResolutionAnalysis,
+    ): Effect.Effect<void> {
+      return Effect.gen(function*() {
+        const implementationResolution = analysis.implementationResolution
+        if (implementationResolution === undefined) return
+        yield* runCheck(check, { ...context, fileName: implementationResolution.fileName }, analysis)
+      })
+    }
+
     function runCheck(
       check: AnyCheck,
       context: CheckDependenciesContext<boolean>,
@@ -152,38 +236,17 @@ export const checkPackage = (
     ): Effect.Effect<void> {
       return Effect.gen(function*() {
         const dependencies = check.dependencies(context)
-        const id = check.name +
-          JSON.stringify(dependencies, (_, value: unknown) => {
-            if (typeof value === 'function') {
-              throw new Error('Encountered unexpected function in check dependencies')
-            }
-            return value
-          })
+        const id = check.name + JSON.stringify(dependencies, rejectFunctionDependency)
         const existing = MutableHashMap.get(problemIdsToIndices, id)
         if (Option.isSome(existing)) {
-          ;(analysis.visibleProblems ??= []).push(...existing.value)
+          showProblems(analysis, existing.value)
           return
         }
-        const indices: number[] = []
-        let gathered: unknown
-        if (check.gather !== undefined) {
-          gathered = yield* check.gather(dependencies, context)
-        }
+        const gathered = yield* gatherForCheck(check, dependencies, context)
         const checkProblems = check.execute(dependencies, context, gathered)
-        let checkProblemList: Problem[]
-        if (Array.isArray(checkProblems)) {
-          checkProblemList = checkProblems
-        } else if (checkProblems !== undefined) {
-          checkProblemList = [checkProblems]
-        } else {
-          checkProblemList = []
-        }
-        for (const problem of checkProblemList) {
-          indices.push(problems.length)
-          problems.push(problem)
-        }
+        const indices = recordProblems(problems, problemListOf(checkProblems))
         MutableHashMap.set(problemIdsToIndices, id, indices)
-        ;(analysis.visibleProblems ??= []).push(...indices)
+        showProblems(analysis, indices)
       })
     }
   })

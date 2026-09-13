@@ -11,7 +11,8 @@
   },
   "files": [
     "dist",
-    "LICENSE"
+    "LICENSE",
+    "agent-plugin"
   ],
   "bin": {
     "attw": "./dist/main.mjs"
@@ -26,6 +27,7 @@
     "typecheck": "tsc --noEmit --incremental",
     "attw": "node ./dist/main.mjs --pack .",
     "lint": "f=${OXLINT_FORMAT:-${AGENT:+agent}}; oxlint . --format=${f:-default}",
+    "mutation": "stryker run",
     "test": "vitest run",
     "prepack": "pnpm build"
   },
@@ -36,9 +38,15 @@
     "@effect/vitest": "catalog:",
     "@systemfsoftware/all": "catalog:",
     "@systemfsoftware/arethetypeswrong": "workspace:*",
+    "@systemfsoftware/effect-cell-types": "catalog:",
     "@systemfsoftware/effect-schema-law": "catalog:",
     "@systemfsoftware/effect-schema-vite": "catalog:",
     "@systemfsoftware/oxlint-plugin-effect-dmmf": "catalog:",
+    "@systemfsoftware/stryker-js-cli": "catalog:",
+    "@systemfsoftware/stryker-js-typescript-checker": "catalog:",
+    "@systemfsoftware/stryker-js-vitest-runner": "catalog:",
+    "@systemfsoftware/stryker-plugins": "catalog:",
+    "@systemfsoftware/stryker-test-contribution": "catalog:",
     "@systemfsoftware/tsconfig": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",

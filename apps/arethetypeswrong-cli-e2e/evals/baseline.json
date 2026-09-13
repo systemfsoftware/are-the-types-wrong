@@ -1,0 +1,49 @@
+{
+  "captured": "2026-09-12",
+  "cwd": "apps/arethetypeswrong-cli-e2e/evals",
+  "dist": "apps/arethetypeswrong-cli/dist/main.mjs (pre-flip, HEAD 24498f8)",
+  "rows": [
+    {
+      "invocation": "node ../../arethetypeswrong-cli/dist/main.mjs fixtures/typed.tgz",
+      "stdoutBytes": 93,
+      "stderrBytes": 0,
+      "exitCode": 1
+    },
+    {
+      "invocation": "node ../../arethetypeswrong-cli/dist/main.mjs fixtures/untyped.tgz",
+      "stdoutBytes": 68,
+      "stderrBytes": 0,
+      "exitCode": 0
+    },
+    {
+      "invocation": "node ../../arethetypeswrong-cli/dist/main.mjs -f table fixtures/typed.tgz",
+      "stdoutBytes": 127,
+      "stderrBytes": 0,
+      "exitCode": 1
+    },
+    {
+      "invocation": "node ../../arethetypeswrong-cli/dist/main.mjs --profile node16 fixtures/typed-node10.tgz",
+      "stdoutBytes": 93,
+      "stderrBytes": 0,
+      "exitCode": 0
+    },
+    {
+      "invocation": "node ../../arethetypeswrong-cli/dist/main.mjs --quiet fixtures/typed.tgz",
+      "stdoutBytes": 0,
+      "stderrBytes": 0,
+      "exitCode": 1
+    },
+    {
+      "invocation": "node ../../arethetypeswrong-cli/dist/main.mjs -f json fixtures/typed.tgz",
+      "stdoutBytes": 25001,
+      "stderrBytes": 0,
+      "exitCode": 1
+    },
+    {
+      "invocation": "node ../../arethetypeswrong-cli/dist/main.mjs --pack fixtures/pack-dir",
+      "stdoutBytes": 93,
+      "stderrBytes": 0,
+      "exitCode": 1
+    }
+  ]
+}

@@ -1,49 +1,52 @@
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
-import { it, layer, makeFeature, StepError } from '@systemfsoftware/effect-gherkin-spec'
+import { Gherkin, Given, it, layer, makeFeature, Then, When } from '@systemfsoftware/effect-gherkin-spec'
 import { createPackage } from '@systemfsoftware/npm-package'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { expect } from 'vitest'
 
 const Feature = makeFeature({ it, layer })
 
-Feature('Package tree constructor — file-tree to Package projection').body(({ scenario }) => {
-  scenario(
-    'Should_PrefixRelativeFiles_When_AuthoredTreeHasRelativePackageJsonAndDts',
-    Effect.gen(function*() {
-      const pkg = createPackage(
-        {
-          'package.json': JSON.stringify({ name: 'demo', version: '1.0.0' }),
-          'index.d.ts': 'export declare const x: number',
-        },
-        'demo',
-        '1.0.0',
-      )
+const encodeJsonText = Schema.encodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))
 
-      expect(pkg.fileExists('/node_modules/demo/package.json')).toBe(true)
-      expect(pkg.fileExists('/node_modules/demo/index.d.ts')).toBe(true)
+const authoredMounts = [
+  { name: 'demo', mount: '/node_modules/demo/index.d.ts' },
+  { name: '@acme/pkg', mount: '/node_modules/@acme/pkg/index.d.ts' },
+] as const
 
-      const result = yield* checkPackage(pkg)
-      expect(result).toHaveProperty('entrypoints')
-    }).pipe(Effect.mapError((cause) => new StepError({ keyword: 'scenario', text: 'checkPackage failed', cause }))),
-  )
+const authoredTree = (packageName: string) =>
+  Effect.gen(function*() {
+    return {
+      'package.json': yield* encodeJsonText({
+        name: packageName,
+        version: '1.0.0',
+        main: './index.js',
+        types: './index.d.ts',
+      }),
+      'index.d.ts': 'export declare const x: number;\n',
+      'index.js': 'export const x = 1;\n',
+    }
+  })
 
-  scenario(
-    'Should_PrefixScopedName_When_PackageNameIsScoped',
-    Effect.gen(function*() {
-      const pkg = createPackage(
-        {
-          'package.json': JSON.stringify({ name: '@acme/pkg', version: '1.0.0' }),
-          'index.d.ts': 'export {}',
-        },
-        '@acme/pkg',
-        '1.0.0',
-      )
-
-      expect(pkg.fileExists('/node_modules/@acme/pkg/package.json')).toBe(true)
-      expect(pkg.fileExists('/node_modules/@acme/pkg/index.d.ts')).toBe(true)
-
-      const result = yield* checkPackage(pkg)
-      expect(result).toHaveProperty('entrypoints')
-    }).pipe(Effect.mapError((cause) => new StepError({ keyword: 'scenario', text: 'checkPackage failed', cause }))),
+Feature('Package trees constructed from authored files').body(({ scenarioOutline }) => {
+  scenarioOutline(
+    'the <name> package is reported from the directory it was mounted at',
+    authoredMounts,
+    (row) =>
+      Gherkin.Do.pipe(
+        Given('an authored tree mounted under its own name')(
+          'pkg',
+          () => authoredTree(row.name).pipe(Effect.map((tree) => createPackage(tree, row.name, '1.0.0'))),
+        ),
+        When('the package is analysed')('analysed', ({ pkg }) => checkPackage(pkg)),
+        Then('the analysis names the package and resolves its declaration file')(({ analysed }) => {
+          expect(analysed.packageName).toBe(row.name)
+          expect(analysed.packageVersion).toBe('1.0.0')
+          if (!('entrypoints' in analysed)) {
+            throw new Error('expected the analysis of a package carrying declarations')
+          }
+          expect(analysed.entrypoints['.']?.hasTypes).toBe(true)
+          expect(analysed.entrypoints['.']?.resolutions.node10.resolution?.fileName).toBe(row.mount)
+        }),
+      ),
   )
 })

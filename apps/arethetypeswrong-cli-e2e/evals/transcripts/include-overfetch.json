@@ -1,0 +1,40 @@
+{
+  "pattern": "include-overfetch",
+  "lesson": "Pass --include only when the task needs the field: the envelope carries the requested field and the stderr expansion hint disappears. A field the tool does not accept is refused, never silently ignored.",
+  "invocations": [
+    {
+      "argv": ["--include", "entrypoints", "fixtures/typed.tgz"],
+      "baseline": null,
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "json": true,
+          "equals": {
+            "status": "ok",
+            "types.kind": "included"
+          },
+          "present": ["entrypoints", "problems", "problemCounts"],
+          "absent": ["buildTools", "programInfo"]
+        },
+        "stderr": { "empty": true }
+      }
+    },
+    {
+      "argv": ["--include", "bogus", "fixtures/typed.tgz"],
+      "baseline": null,
+      "expect": {
+        "exitCode": 1,
+        "stdout": { "empty": true },
+        "stderr": {
+          "json": true,
+          "equals": {
+            "status": "error",
+            "kind": "InvalidPackageSpec"
+          },
+          "contains": ["does not accept"],
+          "present": ["message", "recovery"]
+        }
+      }
+    }
+  ]
+}

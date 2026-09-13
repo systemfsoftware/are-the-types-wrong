@@ -1,0 +1,40 @@
+{
+  "pattern": "welded-query-string",
+  "lesson": "URL syntax welded onto an otherwise valid spec is refused at decode with a typed document naming the query or fragment marker, so the agent learns the fix instead of a registry error.",
+  "invocations": [
+    {
+      "argv": ["lodash@4.17.21?fields=name"],
+      "baseline": null,
+      "expect": {
+        "exitCode": 1,
+        "stdout": { "empty": true },
+        "stderr": {
+          "json": true,
+          "equals": {
+            "status": "error",
+            "kind": "InvalidPackageSpec"
+          },
+          "contains": ["Drop the URL syntax and rerun the same command"],
+          "present": ["message", "recovery"]
+        }
+      }
+    },
+    {
+      "argv": ["lodash@4.17.21#frag"],
+      "baseline": null,
+      "expect": {
+        "exitCode": 1,
+        "stdout": { "empty": true },
+        "stderr": {
+          "json": true,
+          "equals": {
+            "status": "error",
+            "kind": "InvalidPackageSpec"
+          },
+          "contains": ["URL query or fragment marker"],
+          "present": ["message", "recovery"]
+        }
+      }
+    }
+  ]
+}

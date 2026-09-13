@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 
 import { type Problem, ProblemSchema, ResolutionOptionSchema } from './Problem.schema.js'
-import { type EntrypointInfo, EntrypointInfoSchema } from './Resolution.schema.js'
+import { type EntrypointInfo, EntrypointInfoSchema, ProgramInfoSchema } from './Resolution.schema.js'
 
 export const BuildToolSchema = Schema.Literals([
   '@systemfsoftware/arethetypeswrong-cli',
@@ -34,15 +34,13 @@ export const TypesPackageSchema = Schema.Struct({
 export const AnalysisTypesSchema = Schema.Union([IncludedTypesSchema, TypesPackageSchema])
 export type AnalysisTypes = Schema.Schema.Type<typeof AnalysisTypesSchema>
 
-const AnyProgramInfoSchema = Schema.Any
-
 export const AnalysisSchema = Schema.Struct({
   packageName: Schema.String,
   packageVersion: Schema.String,
   buildTools: Schema.Record(Schema.String, Schema.String),
   types: AnalysisTypesSchema,
   entrypoints: Schema.Record(Schema.String, EntrypointInfoSchema),
-  programInfo: Schema.Record(ResolutionOptionSchema, AnyProgramInfoSchema),
+  programInfo: Schema.Record(ResolutionOptionSchema, ProgramInfoSchema),
   problems: Schema.Array(ProblemSchema),
 })
 export type Analysis = Schema.Schema.Type<typeof AnalysisSchema>

@@ -1,101 +1,126 @@
 import type { Analysis, CheckResult, Problem } from '@systemfsoftware/arethetypeswrong'
-import { problemFlagForKind } from './ProblemUtils.js'
+import { Match } from 'effect'
+
+import type { MachineEnvelope } from './decode-envelope-document.workflow.js'
+import { renderEnvelopeDocument } from './envelope-document.js'
+import { isUntypedResult, problemFlagForKind } from './ProblemUtils.js'
 import type { AnsiAnnotation } from './RenderAnsi.js'
 import { renderAsciiAnalysis } from './RenderAscii.js'
-import { renderJson } from './RenderJson.js'
 import { renderTypedAnalysis } from './RenderTyped.js'
 import { renderUntyped } from './RenderUntyped.js'
+import type { RenderMode } from './select-render-mode.workflow.js'
 
-export type CliFormat = 'auto' | 'table' | 'table-flipped' | 'ascii' | 'json'
+export type HumanRenderMode = Exclude<RenderMode, 'envelope' | 'quiet'>
 
 export interface RenderOptions {
-  readonly format: CliFormat
+  readonly format: HumanRenderMode
   readonly ignoreRules: readonly string[]
   readonly useEmoji: boolean
   readonly color: boolean
   readonly summary: boolean
-  readonly quiet: boolean
-  readonly terminalWidth: number
-  readonly isTTY: boolean
 }
 
-const isUntyped = (r: CheckResult): r is Extract<CheckResult, { types: false }> => 'types' in r && r.types === false
+type ModeOptions = Omit<RenderOptions, 'format'>
 
-const visibleProblems = (
+const visibleProblems = (analysis: Analysis, ignoreRules: readonly string[]): readonly Problem[] =>
+  analysis.problems.filter((p) => !ignoreRules.includes(problemFlagForKind(p.kind)))
+
+const groupProblem = (grouped: Record<string, Problem[]>, p: Problem): void => {
+  grouped[p.kind] = grouped[p.kind] ?? []
+  grouped[p.kind].push(p)
+}
+
+const groupProblems = (problems: readonly Problem[]): Record<string, Problem[]> => {
+  const grouped: Record<string, Problem[]> = {}
+  for (const p of problems) {
+    groupProblem(grouped, p)
+  }
+  return grouped
+}
+
+const renderSummary = (problems: readonly Problem[]): string => {
+  if (problems.length === 0) return 'No problems found.'
+  return Object.entries(groupProblems(problems))
+    .map(([kind, list]) => `${kind}: ${list.length}`)
+    .join('\n')
+}
+
+const renderFormatted = (
+  analysis: Analysis,
+  visible: readonly Problem[],
+  options: RenderOptions,
+  annotations: Record<string, AnsiAnnotation>,
+): string => {
+  const entrypointNames = Object.keys(analysis.entrypoints)
+  return Match.value(options.format).pipe(
+    Match.when('ascii', () => renderAsciiAnalysis(entrypointNames, visible, { useEmoji: options.useEmoji })),
+    Match.when('table-flipped', () =>
+      renderTypedAnalysis(
+        entrypointNames,
+        visible,
+        { flipped: true, useEmoji: options.useEmoji, color: options.color },
+        annotations,
+      )),
+    Match.when('table', () =>
+      renderTypedAnalysis(
+        entrypointNames,
+        visible,
+        { flipped: false, useEmoji: options.useEmoji, color: options.color },
+        annotations,
+      )),
+    Match.exhaustive,
+  )
+}
+
+const summarizedAnalysis = (
+  analysis: Analysis,
+  visible: readonly Problem[],
+  options: RenderOptions,
+  annotations: Record<string, AnsiAnnotation>,
+): string => renderSummary(visible) + '\n' + renderAnalysis(analysis, { ...options, summary: false }, annotations)
+
+const renderEntrypointAnalysis = (
   analysis: Analysis,
   options: RenderOptions,
-): readonly Problem[] => analysis.problems.filter((p) => !options.ignoreRules.includes(problemFlagForKind(p.kind)))
+  annotations: Record<string, AnsiAnnotation>,
+): string => {
+  const visible = visibleProblems(analysis, options.ignoreRules)
+  if (options.summary) return summarizedAnalysis(analysis, visible, options, annotations)
+  return renderFormatted(analysis, visible, options, annotations)
+}
 
-export const renderAnalysis = (
+const renderedAnalysis = (
   result: CheckResult,
   options: RenderOptions,
-  annotations: Record<string, AnsiAnnotation> = {},
+  annotations: Record<string, AnsiAnnotation>,
 ): string => {
-  if (options.quiet) return ''
-  const format = resolveFormat(options)
-  if (format === 'json') {
-    if (isUntyped(result)) {
-      return renderJson({ analysis: result }, { pretty: true })
-    }
-    const visible = visibleProblems(result, options)
-    const payload: { analysis: Analysis; problems: readonly Problem[]; summary?: string } = {
-      analysis: result,
-      problems: visible,
-    }
-    if (options.summary) {
-      payload.summary = renderSummary(visible)
-    }
-    return renderJson(payload, { pretty: true })
-  }
-  if (isUntyped(result)) {
+  if (isUntypedResult(result)) {
     return renderUntyped({
       packageName: result.packageName,
       packageVersion: result.packageVersion,
       typesPackageName: null,
     })
   }
-  const visible = visibleProblems(result, options)
-  if (options.summary) {
-    return renderSummary(visible) + '\n' + renderAnalysis(result, { ...options, summary: false }, annotations)
-  }
-  const entrypointNames = Object.keys(result.entrypoints)
-  switch (format) {
-    case 'ascii':
-      return renderAsciiAnalysis(entrypointNames, visible, { useEmoji: options.useEmoji })
-    case 'table-flipped':
-      return renderTypedAnalysis(
-        entrypointNames,
-        visible,
-        { flipped: true, useEmoji: options.useEmoji, color: options.color },
-        annotations,
-      )
-    case 'table':
-      return renderTypedAnalysis(
-        entrypointNames,
-        visible,
-        { flipped: false, useEmoji: options.useEmoji, color: options.color },
-        annotations,
-      )
-  }
+  return renderEntrypointAnalysis(result, options, annotations)
 }
 
-const resolveFormat = (options: RenderOptions): 'table' | 'table-flipped' | 'ascii' | 'json' => {
-  if (options.format === 'json') return 'json'
-  if (options.format === 'ascii') return 'ascii'
-  if (options.format === 'table') return 'table'
-  if (options.format === 'table-flipped') return 'table-flipped'
-  if (options.isTTY && options.terminalWidth >= 100) return 'table-flipped'
-  return 'ascii'
-}
+export const renderAnalysis = (
+  result: CheckResult,
+  options: RenderOptions,
+  annotations: Record<string, AnsiAnnotation> = {},
+): string => renderedAnalysis(result, options, annotations)
 
-const renderSummary = (problems: readonly Problem[]): string => {
-  if (problems.length === 0) return 'No problems found.'
-  const grouped: Record<string, Problem[]> = {}
-  for (const p of problems) {
-    grouped[p.kind] = grouped[p.kind] ?? []
-    grouped[p.kind].push(p)
-  }
-  return Object.entries(grouped)
-    .map(([kind, list]) => `${kind}: ${list.length}`)
-    .join('\n')
-}
+export const renderAnalysisForMode = (
+  result: CheckResult,
+  mode: RenderMode,
+  options: ModeOptions,
+  envelope: MachineEnvelope,
+): string =>
+  Match.value(mode).pipe(
+    Match.when('quiet', () => ''),
+    Match.when('envelope', () => renderEnvelopeDocument(envelope)),
+    Match.when('table', () => renderAnalysis(result, { ...options, format: 'table' })),
+    Match.when('table-flipped', () => renderAnalysis(result, { ...options, format: 'table-flipped' })),
+    Match.when('ascii', () => renderAnalysis(result, { ...options, format: 'ascii' })),
+    Match.exhaustive,
+  )

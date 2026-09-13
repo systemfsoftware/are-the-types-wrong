@@ -16,6 +16,8 @@ export class PackRunner extends Context.Service<PackRunner, PackRunnerService>()
   '@systemfsoftware/arethetypeswrong-cli/pack-runner.adapter/PackRunner',
 ) {}
 
+const tarballNameFrom = (output: string): string => output.trim().split('\n').pop() ?? ''
+
 export const PackRunnerLive: Layer.Layer<PackRunner, never, ChildProcessSpawner> = Layer.succeed(
   PackRunner,
   {
@@ -33,7 +35,7 @@ export const PackRunnerLive: Layer.Layer<PackRunner, never, ChildProcessSpawner>
         const output = yield* spawner.string(cmd).pipe(
           Effect.mapError((e) => new PackRunnerFailed({ message: `npm pack failed in ${cwd}`, cause: e })),
         )
-        const tarballName = output.trim().split('\n').pop() ?? ''
+        const tarballName = tarballNameFrom(output)
         if (!tarballName) {
           return yield* Effect.fail(new PackRunnerFailed({ message: 'npm pack produced no tarball name' }))
         }

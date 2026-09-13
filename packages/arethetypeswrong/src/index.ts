@@ -22,12 +22,31 @@ export { formatEntrypointString, getSubpaths, hasExportTarget } from './Entrypoi
 export { detectEntrypointResolutions } from './EntrypointResolutions.js'
 export type { EntrypointResolutionsInput } from './EntrypointResolutions.js'
 
-export { resolvedThroughFallback } from './Fallback.js'
+export {
+  detectFallbackCondition,
+  DetectFallbackConditionCommand,
+  FallbackConditionAbsent,
+  type FallbackConditionDecision,
+  FallbackConditionDetected,
+  type FallbackTraceObservation,
+  ResolutionTracesCollected,
+  ResolutionTracesUnavailable,
+  ResolutionTraceUnavailable,
+} from './detect-fallback-condition.workflow.js'
 
 export { CommonJSModuleKind, ESNextModuleKind } from './ModuleKind.js'
 
-export { detectModuleKindDisagreement } from './ModuleKindDisagreement.js'
-export type { ModuleKindDisagreementInput } from './ModuleKindDisagreement.js'
+export {
+  detectModuleKindDisagreement,
+  DetectModuleKindDisagreementCommand,
+  FalseCjsDeclared,
+  FalseEsmDeclared,
+  type ModuleKindDisagreementDecision,
+  ModuleKindObservationComplete,
+  ModuleKindObservationMissing,
+  ModuleKindObservationUnavailable,
+  ModuleKindsAgree,
+} from './detect-module-kind-disagreement.workflow.js'
 
 export { parsePackageSpec } from './PackageSpec.js'
 

@@ -4,10 +4,11 @@
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "types": [
-      "node"
+      "node",
+      "vite/client"
     ]
   },
   "include": [
-    "test"
+    "tests"
   ]
 }

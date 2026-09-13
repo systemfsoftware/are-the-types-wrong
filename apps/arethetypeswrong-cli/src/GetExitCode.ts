@@ -1,28 +1,17 @@
-import type { Problem } from '@systemfsoftware/arethetypeswrong'
-
 import { ComputeExitCodeCommand, ComputeExitCodeDecision } from './GetExitCode.schema.js'
-import { problemFlagForKind } from './ProblemUtils.js'
+import { isUntypedResult, isVisibleProblem } from './ProblemUtils.js'
 
-const isVisibleProblem = (
-  problem: Problem,
-  ignoredRules: ReadonlySet<string>,
-  ignoredResolutions: ReadonlySet<string>,
-): boolean => {
-  const ruleIgnored = ignoredRules.has(problemFlagForKind(problem.kind))
-  const resolutionIgnored = 'resolutionKind' in problem && ignoredResolutions.has(problem.resolutionKind)
-  return !ruleIgnored && !resolutionIgnored
+const exitCodeDecision = (exitCode: number): ComputeExitCodeDecision => new ComputeExitCodeDecision({ exitCode })
+
+const visibleProblemExitCode = (hasVisibleProblem: boolean): ComputeExitCodeDecision => {
+  if (hasVisibleProblem) return exitCodeDecision(1)
+  return exitCodeDecision(0)
 }
 
 export const computeExitCode = (command: ComputeExitCodeCommand): ComputeExitCodeDecision => {
   const result = command.result
-  if (result.types === false) {
-    return new ComputeExitCodeDecision({ exitCode: 0 })
-  }
-  const ignoredRules = new Set<string>(command.ignoreRules)
-  const ignoredResolutions = new Set<string>(command.ignoreResolutions)
-  const hasVisibleProblem = result.problems.some((p) => isVisibleProblem(p, ignoredRules, ignoredResolutions))
-  if (hasVisibleProblem) {
-    return new ComputeExitCodeDecision({ exitCode: 1 })
-  }
-  return new ComputeExitCodeDecision({ exitCode: 0 })
+  if (isUntypedResult(result)) return exitCodeDecision(0)
+  return visibleProblemExitCode(
+    result.problems.some((p) => isVisibleProblem(p, command.ignoreRules, command.ignoreResolutions)),
+  )
 }

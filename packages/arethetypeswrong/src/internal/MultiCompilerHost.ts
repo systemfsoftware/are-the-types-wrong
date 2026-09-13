@@ -61,18 +61,24 @@ export const createCompilerHosts = (pkg: Package): Effect.Effect<CompilerHosts> 
       node16,
       bundler,
       findHostForFiles(files: string[]) {
-        for (const host of [node10, node16, bundler]) {
-          if (files.every((f) => host.getSourceFileFromCache(f) !== undefined)) {
-            return host
-          }
-        }
-        return undefined
+        return [node10, node16, bundler].find((host) =>
+          files.every((file) => host.getSourceFileFromCache(file) !== undefined)
+        )
       },
     }
   })
 
 const getCanonicalFileName = ts.createGetCanonicalFileName(false)
 const toPath = (fileName: string) => ts.toPath(fileName, '/', getCanonicalFileName)
+
+const moduleExtensions: readonly string[] = [
+  ts.Extension.Cjs,
+  ts.Extension.Cts,
+  ts.Extension.Dcts,
+  ts.Extension.Mjs,
+  ts.Extension.Mts,
+  ts.Extension.Dmts,
+]
 
 const makeCompilerHost = (
   pkg: Package,
@@ -96,11 +102,11 @@ const makeCompilerHost = (
       compilerOptions,
     )
 
-    const moduleResolutionCache: Record<
-      string,
-      | Record<string, { resolution: ts.ResolvedModuleWithFailedLookupLocations; trace: string[] } | undefined>
-      | undefined
-    > = {}
+    const moduleResolutionCache: Record<string, Record<string, ResolveModuleNameResult | undefined> | undefined> = {}
+
+    const getCachedResolution = (containingFile: string, moduleKey: string): ResolveModuleNameResult | undefined =>
+      moduleResolutionCache[containingFile]?.[moduleKey]
+
     const sourceFileCache = MutableHashMap.empty<ts.Path, ts.SourceFile>()
     const languageVersion = ts.ScriptTarget.Latest
 
@@ -146,28 +152,21 @@ const makeCompilerHost = (
         ),
       )
 
-    const resolveModuleName = (
+    const toResolveModuleNameResult = (result: ResolveModuleNameResult): ResolveModuleNameResult => ({
+      resolution: result.resolution,
+      trace: result.trace,
+    })
+
+    const resolveAndRecordModuleName = (
       moduleName: string,
       containingFile: string,
-      resolutionMode?: ts.ModuleKind.ESNext | ts.ModuleKind.CommonJS,
-      noDtsResolution?: boolean,
-      allowJs?: boolean,
+      resolutionMode: ts.ModuleKind.ESNext | ts.ModuleKind.CommonJS | undefined,
+      noDtsResolution: boolean | undefined,
+      allowJs: boolean | undefined,
+      moduleKey: string,
     ): ResolveModuleNameResult => {
-      const moduleKey = getModuleKey(moduleName, resolutionMode, noDtsResolution, allowJs)
-      const cached = moduleResolutionCache[containingFile]?.[moduleKey]
-      if (cached !== undefined) {
-        return {
-          resolution: cached.resolution,
-          trace: cached.trace,
-        }
-      }
       clearTraces()
-      let resolutionOptions: ts.CompilerOptions = compilerOptions
-      let resolutionCache = normalModuleResolutionCache
-      if (noDtsResolution === true) {
-        resolutionOptions = { ...compilerOptions, noDtsResolution, allowJs }
-        resolutionCache = noDtsResolutionModuleResolutionCache
-      }
+      const { resolutionOptions, resolutionCache } = getResolutionContext(noDtsResolution, allowJs)
       const resolution = ts.resolveModuleName(
         moduleName,
         containingFile,
@@ -177,14 +176,93 @@ const makeCompilerHost = (
         undefined,
         resolutionMode,
       )
-      const traceResult = readTraces()
-      if (moduleResolutionCache[containingFile]?.[moduleKey] === undefined) {
-        ;(moduleResolutionCache[containingFile] ??= {})[moduleKey] = { resolution, trace: traceResult }
-      }
+      const trace = readTraces()
+      recordModuleResolution(containingFile, moduleKey, resolution, trace)
       return {
         resolution,
-        trace: traceResult,
+        trace,
       }
+    }
+
+    const getResolutionContext = (
+      noDtsResolution: boolean | undefined,
+      allowJs: boolean | undefined,
+    ): { resolutionOptions: ts.CompilerOptions; resolutionCache: ts.ModuleResolutionCache } => {
+      if (noDtsResolution === true) {
+        return {
+          resolutionOptions: { ...compilerOptions, noDtsResolution, allowJs },
+          resolutionCache: noDtsResolutionModuleResolutionCache,
+        }
+      }
+      return {
+        resolutionOptions: compilerOptions,
+        resolutionCache: normalModuleResolutionCache,
+      }
+    }
+
+    const recordModuleResolution = (
+      containingFile: string,
+      moduleKey: string,
+      resolution: ts.ResolvedModuleWithFailedLookupLocations,
+      trace: string[],
+    ): void => {
+      if (getCachedResolution(containingFile, moduleKey) === undefined) {
+        storeModuleResolution(containingFile, moduleKey, { resolution, trace })
+      }
+    }
+
+    const storeModuleResolution = (
+      containingFile: string,
+      moduleKey: string,
+      result: ResolveModuleNameResult,
+    ): void => {
+      const entries = moduleResolutionCache[containingFile] ?? {}
+      entries[moduleKey] = result
+      moduleResolutionCache[containingFile] = entries
+    }
+
+    const resolveModuleName = (
+      moduleName: string,
+      containingFile: string,
+      resolutionMode?: ts.ModuleKind.ESNext | ts.ModuleKind.CommonJS,
+      noDtsResolution?: boolean,
+      allowJs?: boolean,
+    ): ResolveModuleNameResult => {
+      const moduleKey = getModuleKey(moduleName, resolutionMode, noDtsResolution, allowJs)
+      const cached = getCachedResolution(containingFile, moduleKey)
+      if (cached !== undefined) {
+        return toResolveModuleNameResult(cached)
+      }
+      return resolveAndRecordModuleName(moduleName, containingFile, resolutionMode, noDtsResolution, allowJs, moduleKey)
+    }
+
+    const createSourceFile = (path: ts.Path, fileName: string): ts.SourceFile | undefined => {
+      const content = getSourceFileContent(fileName)
+      if (content === undefined) {
+        return undefined
+      }
+      return cacheSourceFile(path, fileName, content)
+    }
+
+    const getSourceFileContent = (fileName: string): string | undefined => {
+      if (fileName === '/node_modules/typescript/lib/lib.d.ts') {
+        return minimalLibDts
+      }
+      return pkg.tryReadFile(fileName)
+    }
+
+    const cacheSourceFile = (path: ts.Path, fileName: string, content: string): ts.SourceFile => {
+      const sourceFile = ts.createSourceFile(
+        fileName,
+        content,
+        {
+          languageVersion,
+          impliedNodeFormat: getImpliedNodeFormatForFile(fileName),
+        },
+        true,
+      )
+      MutableHashMap.set(sourceFileCache, path, sourceFile)
+      return sourceFile
     }
 
     const createCompilerHostObject = (): ts.CompilerHost => ({
@@ -197,27 +275,7 @@ const makeCompilerHost = (
         if (Option.isSome(cachedOption)) {
           return cachedOption.value
         }
-        let content: string | undefined
-        if (fileName === '/node_modules/typescript/lib/lib.d.ts') {
-          content = minimalLibDts
-        } else {
-          content = pkg.tryReadFile(fileName)
-        }
-        if (content === undefined) {
-          return undefined
-        }
-
-        const sourceFile = ts.createSourceFile(
-          fileName,
-          content,
-          {
-            languageVersion,
-            impliedNodeFormat: getImpliedNodeFormatForFile(fileName),
-          },
-          true,
-        )
-        MutableHashMap.set(sourceFileCache, path, sourceFile)
-        return sourceFile
+        return createSourceFile(path, fileName)
       },
       getDefaultLibFileName: () => '/node_modules/typescript/lib/lib.d.ts',
       getCurrentDirectory: () => '/',
@@ -288,61 +346,84 @@ const makeCompilerHost = (
 
     const getModuleKindForFile = (fileName: string): ModuleKind | undefined => {
       const kind = getImpliedNodeFormatForFile(fileName)
-      if (kind !== undefined) {
-        const extension = ts.getAnyExtensionFromPath(fileName)
-        const isExtension = extension === ts.Extension.Cjs ||
-          extension === ts.Extension.Cts ||
-          extension === ts.Extension.Dcts ||
-          extension === ts.Extension.Mjs ||
-          extension === ts.Extension.Mts ||
-          extension === ts.Extension.Dmts
-        let reasonPackageJsonInfo: ts.PackageJsonInfo | undefined
-        if (!isExtension) {
-          reasonPackageJsonInfo = getPackageScopeForPath(fileName)
-        }
-        let reasonFileName: string
-        if (isExtension) {
-          reasonFileName = fileName
-        } else if (reasonPackageJsonInfo !== undefined) {
-          reasonFileName = reasonPackageJsonInfo.packageDirectory + '/package.json'
-        } else {
-          reasonFileName = fileName
-        }
-        const reasonPackageJsonType = reasonPackageJsonInfo?.contents.packageJsonContent.type
-        let detectedReason: ModuleKindReason
-        if (isExtension) {
-          detectedReason = 'extension'
-        } else if (isNonEmptyString(reasonPackageJsonType)) {
-          detectedReason = 'type'
-        } else {
-          detectedReason = 'no:type'
-        }
-        return {
-          detectedKind: kind,
-          detectedReason,
-          reasonFileName,
-        }
+      if (kind === undefined) {
+        return undefined
       }
-      return undefined
+      return getDetectedModuleKind(fileName, kind)
     }
+
+    const getDetectedModuleKind = (
+      fileName: string,
+      kind: ts.ModuleKind.ESNext | ts.ModuleKind.CommonJS,
+    ): ModuleKind => {
+      const isExtension = moduleExtensions.includes(ts.getAnyExtensionFromPath(fileName))
+      const reasonPackageJsonInfo = getReasonPackageJsonInfo(fileName, isExtension)
+      return {
+        detectedKind: kind,
+        detectedReason: getDetectedReason(isExtension, reasonPackageJsonInfo),
+        reasonFileName: getReasonFileName(fileName, isExtension, reasonPackageJsonInfo),
+      }
+    }
+
+    const getReasonPackageJsonInfo = (fileName: string, isExtension: boolean): ts.PackageJsonInfo | undefined => {
+      if (isExtension) {
+        return undefined
+      }
+      return getPackageScopeForPath(fileName)
+    }
+
+    const getReasonFileName = (
+      fileName: string,
+      isExtension: boolean,
+      packageJsonInfo: ts.PackageJsonInfo | undefined,
+    ): string => {
+      if (isExtension) {
+        return fileName
+      }
+      return getPackageJsonFileName(packageJsonInfo, fileName)
+    }
+
+    const getPackageJsonFileName = (packageJsonInfo: ts.PackageJsonInfo | undefined, fallback: string): string => {
+      if (packageJsonInfo === undefined) {
+        return fallback
+      }
+      return packageJsonInfo.packageDirectory + '/package.json'
+    }
+
+    const getDetectedReason = (
+      isExtension: boolean,
+      packageJsonInfo: ts.PackageJsonInfo | undefined,
+    ): ModuleKindReason => {
+      if (isExtension) {
+        return 'extension'
+      }
+      return getPackageJsonReason(packageJsonInfo)
+    }
+
+    const getPackageJsonReason = (packageJsonInfo: ts.PackageJsonInfo | undefined): ModuleKindReason => {
+      if (isNonEmptyString(getPackageJsonType(packageJsonInfo))) {
+        return 'type'
+      }
+      return 'no:type'
+    }
+
+    const getPackageJsonType = (packageJsonInfo: ts.PackageJsonInfo | undefined): string | undefined =>
+      packageJsonInfo?.contents.packageJsonContent.type
 
     const getTrace = (
       fromFileName: string,
       moduleSpecifier: string,
       resolutionMode: ts.ModuleKind.ESNext | ts.ModuleKind.CommonJS | undefined,
     ): string[] | undefined =>
-      moduleResolutionCache[fromFileName]?.[
-        getModuleKey(moduleSpecifier, resolutionMode, undefined, undefined)
-      ]?.trace
+      getCachedResolution(fromFileName, getModuleKey(moduleSpecifier, resolutionMode, undefined, undefined))?.trace
 
     const getResolvedModule = (
       sourceFile: ts.SourceFile,
       moduleName: string,
       resolutionMode: ts.ResolutionMode,
     ): ts.ResolvedModuleWithFailedLookupLocations | undefined =>
-      moduleResolutionCache[sourceFile.fileName]?.[
-        getModuleKey(moduleName, resolutionMode, undefined, undefined)
-      ]?.resolution
+      getCachedResolution(sourceFile.fileName, getModuleKey(moduleName, resolutionMode, undefined, undefined))
+        ?.resolution
     const createPrimaryProgram = (rootName: string): Effect.Effect<ts.Program> =>
       getProgram([rootName], compilerOptions)
 

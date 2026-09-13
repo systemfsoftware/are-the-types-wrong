@@ -1,54 +1,86 @@
 import { checkPackage } from '@systemfsoftware/arethetypeswrong'
-import { it, layer, makeFeature, StepError } from '@systemfsoftware/effect-gherkin-spec'
+import { Gherkin, Given, it, layer, makeFeature, Then, When } from '@systemfsoftware/effect-gherkin-spec'
 import { createPackage } from '@systemfsoftware/npm-package'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { expect } from 'vitest'
 
-/**
- * Entrypoint discovery — null-target subpath pruning.
- *
- * Drives the real `checkPackage` analysis over a package whose `exports` map
- * contains subpaths with `null` targets, proving that blocks whose targets are
- * null across every condition are pruned from the reported entrypoints.
- */
 const Feature = makeFeature({ it, layer })
 
-Feature('Entrypoint discovery — pruning null-target subpaths').body(({ scenario }) => {
-  scenario(
-    'Should_SkipExportSubpaths_When_ExportTargetIsNull',
-    checkPackage(
-      createPackage({
-        'dist/browser.d.ts': 'export {};',
-        'dist/browser.js': 'export {};',
-        'index.d.ts': 'export {};',
-        'package.json': JSON.stringify({
-          name: 'test',
-          version: '1.0.0',
-          exports: {
-            './features/*.js': './src/features/*.js',
-            './features/private-internal/*': null,
-            './browser': {
-              node: null,
-              default: './dist/browser.js',
-            },
-            './blocked': {
-              node: null,
-              default: null,
-            },
-          },
+const encodeJsonText = Schema.encodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))
+
+const reachableSubpaths = [
+  { subpath: './features/*.js', shape: 'a wildcard' },
+  { subpath: './browser', shape: 'a literal' },
+] as const
+
+const blockedSubpaths = [{ subpath: './features/private-internal/*' }, { subpath: './blocked' }] as const
+
+const authoredManifest = {
+  name: 'test',
+  version: '1.0.0',
+  exports: {
+    './features/*.js': './src/features/*.js',
+    './features/private-internal/*': null,
+    './browser': {
+      node: null,
+      default: './dist/browser.js',
+    },
+    './blocked': {
+      node: null,
+      default: null,
+    },
+  },
+}
+
+const authoredPackage = Effect.gen(function*() {
+  return createPackage({
+    'dist/browser.d.ts': 'export {};',
+    'dist/browser.js': 'export {};',
+    'index.d.ts': 'export {};',
+    'package.json': yield* encodeJsonText(authoredManifest),
+    'src/features/public.js': 'export {};',
+    'src/features/private-internal/hidden.js': 'export {};',
+  })
+})
+
+Feature('Entrypoint discovery across an export map with blocked subpaths').body(({ scenarioOutline }) => {
+  scenarioOutline(
+    'the <subpath> subpath is reported as <shape>',
+    reachableSubpaths,
+    (row) =>
+      Gherkin.Do.pipe(
+        Given('a package whose export map reaches one subpath only under some condition')(
+          'pkg',
+          () => authoredPackage,
+        ),
+        When('the package is analysed')('analysed', ({ pkg }) => checkPackage(pkg)),
+        Then('the analysis reports the subpath with the authored wildcard shape')(({ analysed }) => {
+          if (!('entrypoints' in analysed)) {
+            throw new Error('expected the analysis of a package carrying declarations')
+          }
+          const entrypoint = analysed.entrypoints[row.subpath]
+          expect(entrypoint).toBeDefined()
+          expect(entrypoint.isWildcard).toBe(row.shape === 'a wildcard')
         }),
-        'src/features/public.js': 'export {};',
-        'src/features/private-internal/hidden.js': 'export {};',
-      }),
-    ).pipe(
-      Effect.mapError((cause) => new StepError({ keyword: 'scenario', text: 'checkPackage failed', cause })),
-      Effect.flatMap((result) => {
-        if (!('entrypoints' in result)) {
-          return Effect.fail(new StepError({ keyword: 'scenario', text: 'Expected analysis', cause: result }))
-        }
-        expect(Object.keys(result.entrypoints)).toEqual(['./features/*.js', './browser'])
-        return Effect.succeed(undefined)
-      }),
-    ),
+      ),
+  )
+
+  scenarioOutline(
+    'the <subpath> subpath is not reported',
+    blockedSubpaths,
+    (row) =>
+      Gherkin.Do.pipe(
+        Given('a package whose export map blocks a private subpath under every condition')(
+          'pkg',
+          () => authoredPackage,
+        ),
+        When('the package is analysed')('analysed', ({ pkg }) => checkPackage(pkg)),
+        Then('the analysis reports no entrypoint for the blocked subpath')(({ analysed }) => {
+          if (!('entrypoints' in analysed)) {
+            throw new Error('expected the analysis of a package carrying declarations')
+          }
+          expect(analysed.entrypoints[row.subpath]).toBeUndefined()
+        }),
+      ),
   )
 })

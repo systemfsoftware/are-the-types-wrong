@@ -1,0 +1,24 @@
+{
+  "pattern": "quiet-on-pipe",
+  "lesson": "--quiet is gate mode: both streams stay empty and the exit code is the whole result, 1 when a visible problem exists and 0 for an untyped package.",
+  "invocations": [
+    {
+      "argv": ["--quiet", "fixtures/typed.tgz"],
+      "baseline": "node ../../arethetypeswrong-cli/dist/main.mjs --quiet fixtures/typed.tgz",
+      "expect": {
+        "exitCode": 1,
+        "stdout": { "empty": true },
+        "stderr": { "empty": true }
+      }
+    },
+    {
+      "argv": ["--quiet", "fixtures/untyped.tgz"],
+      "baseline": null,
+      "expect": {
+        "exitCode": 0,
+        "stdout": { "empty": true },
+        "stderr": { "empty": true }
+      }
+    }
+  ]
+}

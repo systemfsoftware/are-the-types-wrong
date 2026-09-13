@@ -31,6 +31,7 @@
     "prepare": "husky",
     "test": "turbo --concurrency=${TURBO_CONCURRENCY:-50%} test",
     "test:e2e": "turbo --concurrency=${TURBO_CONCURRENCY:-50%} test:e2e",
+    "test:scripts": "deno test --allow-read --allow-write --allow-run --config scripts/deno.json scripts/",
     "typecheck": "turbo --concurrency=${TURBO_CONCURRENCY:-50%} --continue typecheck typecheck:node",
     "typecheck:node": "tsc -p tsconfig.node.json --noEmit"
   },

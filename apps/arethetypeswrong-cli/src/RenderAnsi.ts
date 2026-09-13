@@ -34,12 +34,21 @@ const colorCode = (c: AnsiColor): string => {
   }
 }
 
+const isStyled = (anno: AnsiAnnotation): boolean => anno.bold === true || anno.color !== undefined
+
+const boldPart = (anno: AnsiAnnotation): readonly string[] => {
+  if (anno.bold === true) return ['1']
+  return []
+}
+
+const colorPart = (anno: AnsiAnnotation): readonly string[] => {
+  if (anno.color === undefined) return []
+  return [colorCode(anno.color)]
+}
+
 export const annotate = (text: string, anno: AnsiAnnotation): string => {
-  if (anno.color === undefined && anno.bold !== true) return text
-  const parts: string[] = []
-  if (anno.bold === true) parts.push('1')
-  if (anno.color !== undefined) parts.push(colorCode(anno.color))
-  return `\u001b[${parts.join(';')}m${text}\u001b[0m`
+  if (!isStyled(anno)) return text
+  return `\u001b[${[...boldPart(anno), ...colorPart(anno)].join(';')}m${text}\u001b[0m`
 }
 
 // The escape is built, not written as a literal: a control character inside a
@@ -48,17 +57,24 @@ const ANSI_SEQUENCE = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;]*m`, 'g')
 
 export const stripAnsi = (text: string): string => text.replace(ANSI_SEQUENCE, '')
 
+const replaceMarker = (out: string, marker: string, anno: AnsiAnnotation): string => {
+  if (!out.includes(marker)) return out
+  return out.split(marker).join(annotate(marker, anno))
+}
+
+const colorizeMarkers = (cell: string, annotations: Record<string, AnsiAnnotation>): string => {
+  let out = cell
+  for (const [marker, anno] of Object.entries(annotations)) {
+    out = replaceMarker(out, marker, anno)
+  }
+  return out
+}
+
 export const colorizeCell = (
   cell: string,
   color: boolean,
   annotations: Record<string, AnsiAnnotation>,
 ): string => {
   if (!color) return cell
-  let out = cell
-  for (const [marker, anno] of Object.entries(annotations)) {
-    if (out.includes(marker)) {
-      out = out.split(marker).join(annotate(marker, anno))
-    }
-  }
-  return out
+  return colorizeMarkers(cell, annotations)
 }

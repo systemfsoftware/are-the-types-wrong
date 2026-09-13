@@ -130,7 +130,7 @@ export const InternalResolutionErrorProblemSchema = Schema.Struct({
   end: Schema.Number,
   resolutionOption: ResolutionOptionSchema,
   moduleSpecifier: Schema.String,
-  resolutionMode: Schema.Number,
+  resolutionMode: Schema.optional(Schema.Number),
   trace: Schema.Array(Schema.String),
 })
 export type InternalResolutionErrorProblem = Schema.Schema.Type<typeof InternalResolutionErrorProblemSchema>

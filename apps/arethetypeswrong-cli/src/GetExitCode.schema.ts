@@ -5,6 +5,10 @@ import * as S from 'effect/Schema'
  * The exit-code decision's input. `result` is the core's own `CheckResult`, not
  * an opaque payload: the decision reads `types` and `problems` off it, so the
  * shape it relies on is stated here and a mismatch fails at the boundary.
+ *
+ * A failure never arrives here. `runAttw` fails through `AttwFailure`, which the
+ * handler renders to stderr and turns into exit 1 on its own, so widening this
+ * input to carry a failure would give the same question two answers.
  */
 export class ComputeExitCodeCommand extends S.TaggedClass<ComputeExitCodeCommand>()('ComputeExitCodeCommand', {
   result: CheckResultSchema,

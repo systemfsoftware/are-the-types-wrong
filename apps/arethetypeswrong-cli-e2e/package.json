@@ -14,13 +14,15 @@
   "scripts": {
     "lint": "f=${OXLINT_FORMAT:-${AGENT:+agent}}; oxlint . --format=${f:-default}",
     "test:e2e": "vitest run",
+    "test:evals": "node evals/run.ts",
     "typecheck": "tsc --noEmit --incremental"
   },
   "devDependencies": {
-    "@systemfsoftware/arethetypeswrong-recipes": "workspace:*",
+    "@systemfsoftware/arethetypeswrong-recipes": "workspace:^",
     "@systemfsoftware/npm-package": "catalog:",
     "@systemfsoftware/tsconfig": "catalog:",
     "@types/node": "catalog:",
+    "effect": "catalog:",
     "oxlint": "catalog:",
     "testcontainers": "catalog:",
     "typescript": "catalog:",

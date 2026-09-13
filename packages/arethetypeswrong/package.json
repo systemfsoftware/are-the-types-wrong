@@ -30,6 +30,7 @@
     "typecheck": "tsc --noEmit --incremental",
     "attw": "npm_config_ignore_scripts=true attw --pack .",
     "lint": "f=${OXLINT_FORMAT:-${AGENT:+agent}}; oxlint . --format=${f:-default}",
+    "mutation": "stryker run",
     "test": "vitest run",
     "prepack": "pnpm build"
   },
@@ -55,10 +56,16 @@
     "@systemfsoftware/all": "catalog:",
     "@systemfsoftware/arethetypeswrong-cli": "catalog:",
     "@systemfsoftware/arethetypeswrong-recipes": "workspace:^",
+    "@systemfsoftware/effect-cell-types": "catalog:",
     "@systemfsoftware/effect-gherkin-spec": "catalog:",
     "@systemfsoftware/effect-memfs": "catalog:",
     "@systemfsoftware/effect-schema-law": "catalog:",
     "@systemfsoftware/effect-schema-vite": "catalog:",
+    "@systemfsoftware/stryker-js-cli": "catalog:",
+    "@systemfsoftware/stryker-js-typescript-checker": "catalog:",
+    "@systemfsoftware/stryker-js-vitest-runner": "catalog:",
+    "@systemfsoftware/stryker-plugins": "catalog:",
+    "@systemfsoftware/stryker-test-contribution": "catalog:",
     "@systemfsoftware/tsconfig": "catalog:",
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
@@ -73,5 +80,8 @@
   },
   "engines": {
     "node": ">=24"
+  },
+  "inlinedDependencies": {
+    "@systemfsoftware/effect-cell-types": "7.0.0"
   }
 }

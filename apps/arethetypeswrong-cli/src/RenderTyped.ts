@@ -53,6 +53,59 @@ export type RenderOptions = {
 
 const cellKey = (entrypoint: string, resolutionKind: ResolutionKind): string => `${entrypoint}\u0000${resolutionKind}`
 
+const seedEntrypointCells = (cells: Map<string, Problem[]>, entrypoint: string): void => {
+  for (const resolutionKind of resolutionKindOrder) {
+    cells.set(cellKey(entrypoint, resolutionKind), [])
+  }
+}
+
+const seedCells = (cells: Map<string, Problem[]>, entrypoints: readonly string[]): void => {
+  for (const entrypoint of entrypoints) {
+    seedEntrypointCells(cells, entrypoint)
+  }
+}
+
+const problemEntrypoints = (problem: Problem, entrypoints: readonly string[]): readonly string[] => {
+  if ('entrypoint' in problem) return [problem.entrypoint]
+  return entrypoints
+}
+
+const problemResolutionKinds = (problem: Problem): readonly ResolutionKind[] => {
+  if ('resolutionKind' in problem) return [problem.resolutionKind]
+  return resolutionKindOrder
+}
+
+const pushProblemToCell = (
+  cells: Map<string, Problem[]>,
+  entrypoint: string,
+  resolutionKind: ResolutionKind,
+  problem: Problem,
+): void => {
+  cells.get(cellKey(entrypoint, resolutionKind))?.push(problem)
+}
+
+const pushProblemAlongKinds = (
+  cells: Map<string, Problem[]>,
+  entrypoint: string,
+  resolutionKinds: readonly ResolutionKind[],
+  problem: Problem,
+): void => {
+  for (const resolutionKind of resolutionKinds) {
+    pushProblemToCell(cells, entrypoint, resolutionKind, problem)
+  }
+}
+
+const pushProblem = (
+  cells: Map<string, Problem[]>,
+  entrypoints: readonly string[],
+  resolutionKinds: readonly ResolutionKind[],
+  problem: Problem,
+): void => {
+  for (const entrypoint of entrypoints) {
+    pushProblemAlongKinds(cells, entrypoint, resolutionKinds, problem)
+  }
+}
+
 /**
  * Bucket every problem into the (entrypoint x resolutionKind) cells it belongs to in one pass.
  * A problem carrying neither field is global and lands in every cell, which is why the walk is
@@ -63,25 +116,9 @@ export const partitionProblemsByCell = (
   problems: readonly Problem[],
 ): ReadonlyMap<string, readonly Problem[]> => {
   const cells = new Map<string, Problem[]>()
-  for (const entrypoint of entrypoints) {
-    for (const resolutionKind of resolutionKindOrder) cells.set(cellKey(entrypoint, resolutionKind), [])
-  }
+  seedCells(cells, entrypoints)
   for (const problem of problems) {
-    let axisEntrypoints: readonly string[]
-    if ('entrypoint' in problem) {
-      axisEntrypoints = [problem.entrypoint]
-    } else {
-      axisEntrypoints = entrypoints
-    }
-    let axisKinds: readonly ResolutionKind[]
-    if ('resolutionKind' in problem) {
-      axisKinds = [problem.resolutionKind]
-    } else {
-      axisKinds = resolutionKindOrder
-    }
-    for (const entrypoint of axisEntrypoints) {
-      for (const resolutionKind of axisKinds) cells.get(cellKey(entrypoint, resolutionKind))?.push(problem)
-    }
+    pushProblem(cells, problemEntrypoints(problem, entrypoints), problemResolutionKinds(problem), problem)
   }
   return cells
 }
@@ -92,36 +129,55 @@ export const problemsForCell = (
   resolutionKind: ResolutionKind,
 ): readonly Problem[] => cells.get(cellKey(entrypoint, resolutionKind)) ?? []
 
+const emptyCellMark = (useEmoji: boolean): string => {
+  if (useEmoji) return '✔'
+  return 'OK'
+}
+
+const cellMarkFor = (relevant: readonly Problem[], useEmoji: boolean): string => {
+  if (relevant.length === 0) return emptyCellMark(useEmoji)
+  return relevant.map((p) => symbolForProblem(p, useEmoji)).join('')
+}
+
+const typedRow = (
+  entrypoint: string,
+  cells: ReadonlyMap<string, readonly Problem[]>,
+  opts: RenderOptions,
+  annotations: Record<string, AnsiAnnotation>,
+): readonly string[] => {
+  const row: string[] = [entrypoint]
+  for (const resolutionKind of resolutionKindOrder) {
+    row.push(cellMarkFor(problemsForCell(cells, entrypoint, resolutionKind), opts.useEmoji))
+  }
+  return row.map((c) => colorizeCell(c, opts.color, annotations))
+}
+
+const typedTable = (
+  entrypoints: readonly string[],
+  problems: readonly Problem[],
+  opts: RenderOptions,
+  annotations: Record<string, AnsiAnnotation>,
+): string => {
+  const header: readonly string[] = ['Entrypoint', ...resolutionKindOrder]
+  const cells = partitionProblemsByCell(entrypoints, problems)
+  const rows = entrypoints.map((entrypoint) => typedRow(entrypoint, cells, opts, annotations))
+  if (opts.flipped) return renderFlippedTable(header, rows)
+  return renderTable(header, rows)
+}
+
+const typedAnalysisText = (
+  entrypoints: readonly string[],
+  problems: readonly Problem[],
+  opts: RenderOptions,
+  annotations: Record<string, AnsiAnnotation>,
+): string => {
+  if (entrypoints.length === 0) return 'No entrypoints found.'
+  return typedTable(entrypoints, problems, opts, annotations)
+}
+
 export const renderTypedAnalysis = (
   entrypoints: readonly string[],
   problems: readonly Problem[],
   opts: RenderOptions,
   annotations: Record<string, AnsiAnnotation> = {},
-): string => {
-  if (entrypoints.length === 0) {
-    return 'No entrypoints found.'
-  }
-  const header: readonly string[] = ['Entrypoint', ...resolutionKindOrder]
-  const cells = partitionProblemsByCell(entrypoints, problems)
-  const rows = entrypoints.map((entrypoint) => {
-    const row: string[] = [entrypoint]
-    for (const rk of resolutionKindOrder) {
-      const relevant = problemsForCell(cells, entrypoint, rk)
-      if (relevant.length === 0) {
-        if (opts.useEmoji) {
-          row.push('✔')
-        } else {
-          row.push('OK')
-        }
-        continue
-      }
-      const symbols = relevant.map((p) => symbolForProblem(p, opts.useEmoji)).join('')
-      row.push(symbols)
-    }
-    return row.map((c) => colorizeCell(c, opts.color, annotations))
-  })
-  if (opts.flipped) {
-    return renderFlippedTable(header, rows)
-  }
-  return renderTable(header, rows)
-}
+): string => typedAnalysisText(entrypoints, problems, opts, annotations)
