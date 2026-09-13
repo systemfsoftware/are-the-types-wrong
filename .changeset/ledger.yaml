@@ -3,7 +3,16 @@
   intents:
     - force-34643654002-patch
     - twenty-vans-prove
+"@systemfsoftware/arethetypeswrong-cli@4.2.0":
+  dir: apps/arethetypeswrong-cli
+  intents:
+    - agent-first-cli
+    - bright-spoons-invite
 "@systemfsoftware/arethetypeswrong@7.0.1":
   dir: packages/arethetypeswrong
   intents:
     - force-34643682311-patch
+"@systemfsoftware/arethetypeswrong@7.0.2":
+  dir: packages/arethetypeswrong
+  intents:
+    - agent-first-cli
