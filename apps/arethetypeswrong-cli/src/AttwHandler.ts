@@ -162,19 +162,32 @@ export const usageErrorOutcome = (command: UsageErrorCommand): UsageErrorOutcome
   }
 }
 
+const formattedUsageErrorCommand = (error: CliError.CliError, isTty: boolean): UsageErrorCommand => ({
+  kind: error._tag,
+  message: usageErrorFormatter.formatCliError(error),
+  isTty,
+})
+
+const emptyShowHelpCommand = (error: CliError.ShowHelp, isTty: boolean): UsageErrorCommand => ({
+  kind: error._tag,
+  message: error.message,
+  isTty,
+})
+
+const detailedShowHelpCommand = (error: CliError.ShowHelp, isTty: boolean): UsageErrorCommand => ({
+  kind: error.errors[0]._tag,
+  message: error.errors.map((one) => usageErrorFormatter.formatCliError(one)).join('; '),
+  isTty,
+})
+
+const showHelpUsageErrorCommand = (error: CliError.ShowHelp, isTty: boolean): UsageErrorCommand => {
+  if (error.errors.length === 0) return emptyShowHelpCommand(error, isTty)
+  return detailedShowHelpCommand(error, isTty)
+}
+
 const usageErrorCommandOf = (error: CliError.CliError, isTty: boolean): UsageErrorCommand => {
-  if (!(error instanceof CliError.ShowHelp)) {
-    return { kind: error._tag, message: usageErrorFormatter.formatCliError(error), isTty }
-  }
-  const [primary] = error.errors
-  if (error.errors.length === 0) {
-    return { kind: error._tag, message: error.message, isTty }
-  }
-  return {
-    kind: primary._tag,
-    message: error.errors.map((one) => usageErrorFormatter.formatCliError(one)).join('; '),
-    isTty,
-  }
+  if (error instanceof CliError.ShowHelp) return showHelpUsageErrorCommand(error, isTty)
+  return formattedUsageErrorCommand(error, isTty)
 }
 
 export const renderCliError = (error: CliError.CliError): Effect.Effect<number, never, Terminal> =>
@@ -192,17 +205,19 @@ const writeCaptured = (
   Effect.gen(function*() {
     if (captured.length === 0) return
     const terminal = yield* Terminal
-    const text = captured.map((line) => `${line}\n`).join('')
-    if (stream === 'stdout') yield* terminal.stdout.write(text)
-    else yield* terminal.stderr.write(text)
+    const sink = { stdout: terminal.stdout, stderr: terminal.stderr }[stream]
+    yield* sink.write(captured.map((line) => `${line}\n`).join(''))
   })
+
+const isBareShowHelp = (error: CliError.CliError): boolean =>
+  error instanceof CliError.ShowHelp && error.errors.length === 0
 
 const handleCliError = (
   error: CliError.CliError,
   captured: readonly string[],
 ): Effect.Effect<void, never, Terminal> =>
   Effect.gen(function*() {
-    if (error instanceof CliError.ShowHelp && error.errors.length === 0) {
+    if (isBareShowHelp(error)) {
       yield* writeCaptured('stdout', captured)
       return
     }

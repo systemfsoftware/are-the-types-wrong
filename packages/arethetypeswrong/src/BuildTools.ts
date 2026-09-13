@@ -4,15 +4,21 @@ export const allBuildTools: readonly BuildTool[] = [...BuildToolSchema.literals]
 
 export const getBuildTools = (packageJson: {
   devDependencies?: Record<string, string>
-}): Partial<Record<BuildTool, string>> => {
-  if (!packageJson.devDependencies) {
-    return {}
+}): Partial<Record<BuildTool, string>> => selectBuildTools(packageJson.devDependencies)
+
+function isBuildTool(name: string): name is BuildTool {
+  return allBuildTools.some((tool) => tool === name)
+}
+
+function selectBuildTools(devDependencies: Record<string, string> | undefined): Partial<Record<BuildTool, string>> {
+  const selected: Partial<Record<BuildTool, string>> = {}
+  if (devDependencies === undefined) {
+    return selected
   }
-  const result: Partial<Record<BuildTool, string>> = {}
-  for (const dep of Object.keys(packageJson.devDependencies)) {
-    const tool = allBuildTools.find((candidate) => candidate === dep)
-    if (tool === undefined) continue
-    result[tool] = packageJson.devDependencies[dep]
-  }
-  return result
+  Object.entries(devDependencies).forEach(([name, version]) => {
+    if (isBuildTool(name)) {
+      selected[name] = version
+    }
+  })
+  return selected
 }

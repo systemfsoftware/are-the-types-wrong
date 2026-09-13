@@ -1,40 +1,51 @@
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+import { Predicate } from 'effect'
 
-export const getSubpaths = (exportsObject: unknown): readonly string[] => {
-  if (!isRecord(exportsObject)) {
-    return []
-  }
+const isSubpathKeyed = (keys: readonly string[]): boolean => keys[0]?.startsWith('.') === true
+
+const subpathsOfRecord = (exportsObject: { readonly [x: PropertyKey]: unknown }): readonly string[] => {
   const keys = Object.keys(exportsObject)
-  if (keys[0]?.startsWith('.')) {
-    return keys.filter((key) => hasExportTarget(exportsObject[key]))
-  }
+  if (isSubpathKeyed(keys)) return keys.filter((key) => hasExportTarget(exportsObject[key]))
   return keys.flatMap((key) => getSubpaths(exportsObject[key]))
 }
 
-export const hasExportTarget = (exportsObject: unknown): boolean => {
-  if (exportsObject === null || exportsObject === undefined) {
-    return false
+export const getSubpaths = (exportsObject: unknown): readonly string[] => {
+  if (!Predicate.isObject(exportsObject)) {
+    return []
   }
-  if (typeof exportsObject !== 'object') {
-    return true
-  }
-  if (Array.isArray(exportsObject)) {
-    return exportsObject.some(hasExportTarget)
-  }
-  return isRecord(exportsObject) && Object.keys(exportsObject).some((key) => hasExportTarget(exportsObject[key]))
+  return subpathsOfRecord(exportsObject)
 }
 
-export const formatEntrypointString = (path: string, packageName: string): string => {
-  let normalized: string
-  if (path === '.' || path.startsWith('./')) {
-    normalized = path
-  } else if (path === packageName) {
-    normalized = '.'
-  } else if (path.startsWith(`${packageName}/`)) {
-    normalized = `.${path.slice(packageName.length)}`
-  } else {
-    normalized = `./${path}`
-  }
-  return normalized.trim()
+const isBareExportTarget = (value: unknown): boolean => value !== null && value !== undefined
+
+const objectHasExportTarget = (value: unknown): boolean =>
+  Predicate.isObject(value) && Object.keys(value).some((key) => hasExportTarget(value[key]))
+
+const structuredExportTarget = (value: object): boolean => {
+  if (Array.isArray(value)) return value.some(hasExportTarget)
+  return objectHasExportTarget(value)
 }
+
+export const hasExportTarget = (exportsObject: unknown): boolean => {
+  if (Predicate.isObjectOrArray(exportsObject)) return structuredExportTarget(exportsObject)
+  return isBareExportTarget(exportsObject)
+}
+
+const isRelativeEntrypoint = (path: string): boolean => path === '.' || path.startsWith('./')
+
+const subpathOrBareEntrypoint = (path: string, packageName: string): string => {
+  if (path.startsWith(`${packageName}/`)) return `.${path.slice(packageName.length)}`
+  return `./${path}`
+}
+
+const selfOrSubpathEntrypoint = (path: string, packageName: string): string => {
+  if (path === packageName) return '.'
+  return subpathOrBareEntrypoint(path, packageName)
+}
+
+const normalizedEntrypoint = (path: string, packageName: string): string => {
+  if (isRelativeEntrypoint(path)) return path
+  return selfOrSubpathEntrypoint(path, packageName)
+}
+
+export const formatEntrypointString = (path: string, packageName: string): string =>
+  normalizedEntrypoint(path, packageName).trim()

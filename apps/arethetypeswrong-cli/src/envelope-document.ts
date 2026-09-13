@@ -30,10 +30,17 @@ const withoutTrace = (problem: InternalResolutionErrorProblem): MaskedProblem =>
   return rest
 }
 
+const isInternalResolutionError = (problem: Problem): problem is InternalResolutionErrorProblem =>
+  problem.kind === 'InternalResolutionError'
+
+const withoutTracesIfInternal = (problem: Problem): MaskedProblem => {
+  if (isInternalResolutionError(problem)) return withoutTrace(problem)
+  return problem
+}
+
 const maskProblem = (problem: Problem, keepTraces: boolean): MaskedProblem => {
   if (keepTraces) return problem
-  if (problem.kind === 'InternalResolutionError') return withoutTrace(problem)
-  return problem
+  return withoutTracesIfInternal(problem)
 }
 
 const countByKind = (problems: readonly MaskedProblem[]): Record<string, number> =>
@@ -52,13 +59,20 @@ const visibleProblems = (
     .filter((problem) => isVisibleProblem(problem, ignoredRules, ignoredResolutions))
     .map((problem) => maskProblem(problem, mask.traces))
 
-const expandedFields = (analysis: Analysis, mask: EnvelopeMask): Partial<OkEnvelope> => {
-  let fields: Partial<OkEnvelope> = {}
-  if (mask.entrypoints) fields = { ...fields, entrypoints: analysis.entrypoints }
-  if (mask.buildTools) fields = { ...fields, buildTools: analysis.buildTools }
-  if (mask.programInfo) fields = { ...fields, programInfo: analysis.programInfo }
-  return fields
-}
+const optionalFields: ReadonlyArray<{
+  readonly keep: (mask: EnvelopeMask) => boolean
+  readonly field: (analysis: Analysis) => Partial<OkEnvelope>
+}> = [
+  { keep: (mask) => mask.entrypoints, field: (analysis) => ({ entrypoints: analysis.entrypoints }) },
+  { keep: (mask) => mask.buildTools, field: (analysis) => ({ buildTools: analysis.buildTools }) },
+  { keep: (mask) => mask.programInfo, field: (analysis) => ({ programInfo: analysis.programInfo }) },
+]
+
+const expandedFields = (analysis: Analysis, mask: EnvelopeMask): Partial<OkEnvelope> =>
+  optionalFields.reduce<Partial<OkEnvelope>>((fields, entry) => {
+    if (entry.keep(mask)) return { ...fields, ...entry.field(analysis) }
+    return fields
+  }, {})
 
 const analysisDocument = (
   analysis: Analysis,

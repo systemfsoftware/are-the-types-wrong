@@ -32,8 +32,13 @@ const reservedHosts: readonly string[] = ['localhost', '[::1]', '::1']
 const loopbackIpv4 = /^127(?:\.\d{1,3}){3}$/
 const privateIpv4 = /^(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})$/
 
-const isLocalHost = (hostname: string): boolean =>
-  Array.contains(reservedHosts, hostname) || loopbackIpv4.test(hostname) || privateIpv4.test(hostname)
+const localHostRules: readonly ((hostname: string) => boolean)[] = [
+  (hostname) => Array.contains(reservedHosts, hostname),
+  (hostname) => loopbackIpv4.test(hostname),
+  (hostname) => privateIpv4.test(hostname),
+]
+
+const isLocalHost = (hostname: string): boolean => Array.some(localHostRules, (rule) => rule(hostname))
 
 const unparseableUrl = (): RegistryUrlRefusal =>
   refusal(

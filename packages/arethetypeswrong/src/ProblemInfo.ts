@@ -1,5 +1,6 @@
 import type { Analysis } from './Analysis.schema.js'
 import { type Problem, type ProblemKind, type ResolutionKind, type ResolutionOption } from './Problem.schema.js'
+import type { EntrypointInfo } from './Resolution.schema.js'
 import { getResolutionKinds } from './ResolutionKind.js'
 
 export interface ProblemKindInfo {
@@ -126,17 +127,31 @@ export interface ProblemFilter {
   readonly resolutionOption?: ResolutionOption
 }
 
-const getProblemIndex = (analysis: Analysis, problem: Problem): number => {
-  let index = analysis.problems.indexOf(problem)
+const foundProblemIndex = (index: number): number => {
   if (index === -1) {
-    const serialized = JSON.stringify(problem)
-    index = analysis.problems.findIndex((p) => JSON.stringify(p) === serialized)
-    if (index === -1) {
-      throw new Error(`Could not find problem in analysis`)
-    }
+    throw new Error(`Could not find problem in analysis`)
   }
   return index
 }
+
+const indexBySerializedProblem = (analysis: Analysis, problem: Problem): number => {
+  const serialized = JSON.stringify(problem)
+  return foundProblemIndex(analysis.problems.findIndex((candidate) => JSON.stringify(candidate) === serialized))
+}
+
+const getProblemIndex = (analysis: Analysis, problem: Problem): number => {
+  const index = analysis.problems.indexOf(problem)
+  if (index !== -1) return index
+  return indexBySerializedProblem(analysis, problem)
+}
+
+const resolutionVisibleProblems = (
+  entrypoint: EntrypointInfo,
+  resolutionKind: ResolutionKind,
+): readonly number[] | undefined => entrypoint.resolutions[resolutionKind]?.visibleProblems
+
+const includesProblemIndex = (visible: readonly number[] | undefined, index: number): boolean =>
+  visible !== undefined && visible.includes(index)
 
 const problemAffectsResolutionKind = (
   problem: Problem,
@@ -144,13 +159,9 @@ const problemAffectsResolutionKind = (
   analysis: Analysis,
 ): boolean => {
   const index = getProblemIndex(analysis, problem)
-  for (const entrypoint of Object.values(analysis.entrypoints)) {
-    const visible = entrypoint.resolutions[resolutionKind]?.visibleProblems
-    if (visible !== undefined && visible.includes(index)) {
-      return true
-    }
-  }
-  return false
+  return Object.values(analysis.entrypoints).some((entrypoint) =>
+    includesProblemIndex(resolutionVisibleProblems(entrypoint, resolutionKind), index)
+  )
 }
 
 const problemAffectsEntrypoint = (
@@ -160,11 +171,22 @@ const problemAffectsEntrypoint = (
 ): boolean => {
   const index = getProblemIndex(analysis, problem)
   if (!Object.hasOwn(analysis.entrypoints, entrypoint)) return false
-  for (const resolution of Object.values(analysis.entrypoints[entrypoint].resolutions)) {
-    const visible = resolution.visibleProblems
-    if (visible !== undefined && visible.includes(index)) return true
-  }
-  return false
+  return Object.values(analysis.entrypoints[entrypoint].resolutions).some((resolution) =>
+    includesProblemIndex(resolution.visibleProblems, index)
+  )
+}
+
+const entrypointInfoAt = (analysis: Analysis, entrypoint: string): EntrypointInfo | undefined =>
+  analysis.entrypoints[entrypoint]
+
+const entrypointVisibleProblems = (
+  analysis: Analysis,
+  entrypoint: string,
+  resolutionKind: ResolutionKind,
+): readonly number[] | undefined => {
+  const info = entrypointInfoAt(analysis, entrypoint)
+  if (info === undefined) return undefined
+  return resolutionVisibleProblems(info, resolutionKind)
 }
 
 const problemAffectsEntrypointResolution = (
@@ -174,47 +196,87 @@ const problemAffectsEntrypointResolution = (
   analysis: Analysis,
 ): boolean => {
   const index = getProblemIndex(analysis, problem)
-  const visible = analysis.entrypoints[entrypoint]?.resolutions[resolutionKind]?.visibleProblems
-  return visible !== undefined && visible.includes(index)
+  return includesProblemIndex(entrypointVisibleProblems(analysis, entrypoint, resolutionKind), index)
+}
+
+const passesKindFilter = (problem: Problem, kinds: readonly ProblemKind[] | undefined): boolean =>
+  kinds === undefined || kinds.includes(problem.kind)
+
+const optionMatchesEntrypoint = (
+  problem: Problem,
+  analysis: Analysis,
+  entrypoint: string,
+  resolutionOption: ResolutionOption,
+): boolean =>
+  getResolutionKinds(resolutionOption).every((resolutionKind) =>
+    problemAffectsEntrypointResolution(problem, entrypoint, resolutionKind, analysis)
+  )
+
+const optionOrEntrypointFilterMatch = (
+  problem: Problem,
+  analysis: Analysis,
+  filter: ProblemFilter,
+  entrypoint: string,
+): boolean => {
+  if (filter.resolutionOption !== undefined) {
+    return optionMatchesEntrypoint(problem, analysis, entrypoint, filter.resolutionOption)
+  }
+  return problemAffectsEntrypoint(problem, entrypoint, analysis)
+}
+
+const entrypointFilterMatch = (
+  problem: Problem,
+  analysis: Analysis,
+  filter: ProblemFilter,
+  entrypoint: string,
+): boolean => {
+  if (filter.resolutionKind !== undefined) {
+    return problemAffectsEntrypointResolution(problem, entrypoint, filter.resolutionKind, analysis)
+  }
+  return optionOrEntrypointFilterMatch(problem, analysis, filter, entrypoint)
+}
+
+const resolutionKindFilterMatch = (
+  problem: Problem,
+  analysis: Analysis,
+  resolutionKind: ResolutionKind | undefined,
+): boolean => {
+  if (resolutionKind === undefined) return true
+  return problemAffectsResolutionKind(problem, resolutionKind, analysis)
+}
+
+const scopeFilterMatch = (problem: Problem, analysis: Analysis, filter: ProblemFilter): boolean => {
+  if (filter.entrypoint === undefined) return resolutionKindFilterMatch(problem, analysis, filter.resolutionKind)
+  return entrypointFilterMatch(problem, analysis, filter, filter.entrypoint)
+}
+
+const matchesProblemFilter = (problem: Problem, analysis: Analysis, filter: ProblemFilter): boolean => {
+  if (!passesKindFilter(problem, filter.kind)) return false
+  return scopeFilterMatch(problem, analysis, filter)
 }
 
 export const filterProblems = (
   problems: readonly Problem[],
   analysis: Analysis,
   filter: ProblemFilter,
-): readonly Problem[] => {
-  return problems.filter((p) => {
-    if (filter.kind && !filter.kind.includes(p.kind)) return false
-    if (filter.entrypoint !== undefined && filter.resolutionKind !== undefined) {
-      return problemAffectsEntrypointResolution(p, filter.entrypoint, filter.resolutionKind, analysis)
-    }
-    if (filter.entrypoint !== undefined && filter.resolutionOption !== undefined) {
-      const ep = filter.entrypoint
-      return getResolutionKinds(filter.resolutionOption).every((rk) =>
-        problemAffectsEntrypointResolution(p, ep, rk, analysis)
-      )
-    }
-    if (filter.entrypoint !== undefined) {
-      return problemAffectsEntrypoint(p, filter.entrypoint, analysis)
-    }
-    if (filter.resolutionKind !== undefined) {
-      return problemAffectsResolutionKind(p, filter.resolutionKind, analysis)
-    }
-    return true
-  })
+): readonly Problem[] => problems.filter((problem) => matchesProblemFilter(problem, analysis, filter))
+
+const appendProblemToKind = <K extends ProblemKind>(
+  result: Partial<Record<K, (Problem & { kind: K })[]>>,
+  problem: Problem & { kind: K },
+): void => {
+  const list = result[problem.kind]
+  if (list === undefined) {
+    result[problem.kind] = [problem]
+    return
+  }
+  list.push(problem)
 }
 
 export const groupProblemsByKind = <K extends ProblemKind>(
   problems: readonly (Problem & { kind: K })[],
 ): Partial<Record<K, readonly (Problem & { kind: K })[]>> => {
   const result: Partial<Record<K, (Problem & { kind: K })[]>> = {}
-  for (const problem of problems) {
-    const list = result[problem.kind]
-    if (list === undefined) {
-      result[problem.kind] = [problem]
-    } else {
-      list.push(problem)
-    }
-  }
+  for (const problem of problems) appendProblemToKind(result, problem)
   return result
 }

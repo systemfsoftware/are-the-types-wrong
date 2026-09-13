@@ -41,7 +41,14 @@ export function isFunctionBlock(node: ts.Node): node is ts.Block {
 
 /** @internal */
 export function hasModifier(node: ts.Node, kind: ts.SyntaxKind.ExportKeyword | ts.SyntaxKind.DefaultKeyword): boolean {
-  return ts.canHaveModifiers(node) && (ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) ?? false)
+  return ts.canHaveModifiers(node) && hasModifierOfKind(ts.getModifiers(node), kind)
+}
+
+function hasModifierOfKind(
+  modifiers: readonly ts.Modifier[] | undefined,
+  kind: ts.SyntaxKind.ExportKeyword | ts.SyntaxKind.DefaultKeyword,
+): boolean {
+  return (modifiers ?? []).some((modifier) => modifier.kind === kind)
 }
 
 /** @internal */

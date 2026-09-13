@@ -28,5 +28,13 @@ export function withTypesCompanion(pkg: Package, typesPkg: Package): PackageWith
 }
 
 export function isPackageWithCompanion(value: unknown): value is PackageWithCompanion {
-  return typeof value === 'object' && value !== null && 'pkg' in value && 'companion' in value
+  return isObjectValue(value) && isCompanionShape(value)
+}
+
+function isObjectValue(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
+function isCompanionShape(value: object): value is PackageWithCompanion {
+  return 'pkg' in value && 'companion' in value
 }

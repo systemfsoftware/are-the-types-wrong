@@ -61,92 +61,253 @@ export const PackageStoreStub = (
     fetchTarball: () => Effect.succeed(tarball),
   })
 
-const nameOf = (specs: readonly ParsedPackageSpec[]): string => specs[0]?.name ?? '<no spec>'
+type RegistryVersions = NonNullable<NpmRegistryDoc['versions']>
+
+interface RegistryScan {
+  readonly baseUrl: string
+  readonly options: PackageStoreOptions
+  readonly packument: unknown
+}
+
+const firstSpecName = (specs: readonly ParsedPackageSpec[]): string | undefined => specs[0]?.name
+
+const nameOf = (specs: readonly ParsedPackageSpec[]): string => firstSpecName(specs) ?? '<no spec>'
 
 const decodeRegistryDoc = Schema.decodeUnknownOption(NpmRegistryDocSchema)
 
-/** The tarball URL a spec resolves to inside one registry document, if any. */
-const tarballFor = (
+const registryBaseUrl = (options: PackageStoreOptions): string =>
+  options.registryBaseUrl ?? 'https://registry.npmjs.org'
+
+const isNonExactSpec = (spec: ParsedPackageSpec): boolean => spec.versionKind !== 'exact'
+
+const includesTimes = (packageSpecs: readonly ParsedPackageSpec[], options: PackageStoreOptions): boolean =>
+  options.before !== undefined && packageSpecs.some(isNonExactSpec)
+
+const acceptHeader = (packageSpecs: readonly ParsedPackageSpec[], options: PackageStoreOptions): string => {
+  if (includesTimes(packageSpecs, options)) return 'application/json'
+  return 'application/vnd.npm.install-v1+json'
+}
+
+const fetchJson = async (
+  url: string,
+  init?: { readonly headers: Record<string, string> },
+): Promise<unknown> => fetch(url, init).then((response) => response.json())
+
+const packumentUrl = (baseUrl: string, packageSpecs: readonly ParsedPackageSpec[]): string =>
+  `${baseUrl}/${nameOf(packageSpecs)}`
+
+const isNamedTagSpec = (spec: ParsedPackageSpec): boolean => spec.versionKind === 'tag' && spec.version !== 'latest'
+
+const needsPackumentLookup = (spec: ParsedPackageSpec): boolean => spec.versionKind === 'range' || isNamedTagSpec(spec)
+
+const needsPackument = (packageSpecs: readonly ParsedPackageSpec[]): boolean => packageSpecs.some(needsPackumentLookup)
+
+async function packumentFor(
+  baseUrl: string,
+  packageSpecs: readonly ParsedPackageSpec[],
+  options: PackageStoreOptions,
+): Promise<unknown> {
+  if (!needsPackument(packageSpecs)) return undefined
+  return fetchJson(packumentUrl(baseUrl, packageSpecs), { headers: { accept: acceptHeader(packageSpecs, options) } })
+}
+
+const manifestUrlFor = (scan: RegistryScan, spec: ParsedPackageSpec): string =>
+  `${scan.baseUrl}/${spec.name}/${spec.version || 'latest'}`
+
+const registryPayload = async (scan: RegistryScan, manifestUrl: string): Promise<unknown> =>
+  scan.packument ?? fetchJson(manifestUrl)
+
+const decodeDoc = (payload: unknown, manifestUrl: string): NpmRegistryDoc => {
+  const decoded = decodeRegistryDoc(payload)
+  if (Option.isNone(decoded)) {
+    throw new PackageStoreError({ message: `Unexpected response from ${manifestUrl}` })
+  }
+  return decoded.value
+}
+
+const isRegistryError = (doc: NpmRegistryDoc): boolean => doc.error !== undefined && doc.error !== 'Not found'
+
+const assertRegistryDoc = (doc: NpmRegistryDoc, manifestUrl: string): NpmRegistryDoc => {
+  if (isRegistryError(doc)) {
+    throw new PackageStoreError({ message: `Unexpected response from ${manifestUrl}: ${doc.error}` })
+  }
+  return doc
+}
+
+const tarballUrlIn = (versions: RegistryVersions, packageVersion: string): string | undefined =>
+  versions[packageVersion]?.dist.tarball
+
+const tarballRefOf = (
+  packageName: string,
+  packageVersion: string,
+  tarballUrl: string | undefined,
+): PackageStoreTarballRef | undefined => {
+  if (tarballUrl === undefined) return undefined
+  return { packageName, packageVersion, tarballUrl }
+}
+
+const isDeprecatedVersion = (versions: RegistryVersions, version: string): boolean =>
+  versions[version]?.deprecated !== undefined
+
+const isCandidateVersion = (
+  versions: RegistryVersions,
+  version: string,
+  options: PackageStoreOptions,
+): boolean => options.allowDeprecated === true || !isDeprecatedVersion(versions, version)
+
+const candidateVersions = (versions: RegistryVersions, options: PackageStoreOptions): readonly string[] =>
+  Object.keys(versions).filter((version) => isCandidateVersion(versions, version, options))
+
+const maxSatisfyingTarballRef = (
+  versions: RegistryVersions,
+  spec: ParsedPackageSpec,
+  options: PackageStoreOptions,
+): PackageStoreTarballRef | undefined => {
+  const packageVersion = maxSatisfying(candidateVersions(versions, options), spec.version)
+  if (packageVersion === null) return undefined
+  return tarballRefOf(spec.name, packageVersion, tarballUrlIn(versions, packageVersion))
+}
+
+const rangeTarballRef = (
   doc: NpmRegistryDoc,
   spec: ParsedPackageSpec,
   options: PackageStoreOptions,
 ): PackageStoreTarballRef | undefined => {
   const versions = doc.versions
-  if (spec.versionKind === 'range') {
-    if (versions === undefined) return undefined
-    const candidates = Object.keys(versions).filter(
-      (version) => options.allowDeprecated === true || versions[version]?.deprecated === undefined,
-    )
-    const packageVersion = maxSatisfying(candidates, spec.version)
-    if (packageVersion === null) return undefined
-    const tarballUrl = versions[packageVersion].dist.tarball
-    return { packageName: spec.name, packageVersion, tarballUrl }
-  }
-  if (spec.versionKind === 'tag' && spec.version !== 'latest') {
-    // A named tag names no version in the packument's `versions` map, so the
-    // tag has to be looked up in `dist-tags` before a tarball exists for it.
-    const packageVersion = doc['dist-tags']?.[spec.version]
-    if (packageVersion === undefined) return undefined
-    const publishedAt = doc.time?.[packageVersion]
-    if (options.before !== undefined && publishedAt !== undefined && new Date(publishedAt) > options.before) {
-      return undefined
-    }
-    const tarballUrl = versions?.[packageVersion]?.dist.tarball
-    if (tarballUrl === undefined) return undefined
-    return { packageName: spec.name, packageVersion, tarballUrl }
-  }
-  if (doc.version !== undefined) {
-    const tarballUrl = doc.dist?.tarball
-    if (tarballUrl === undefined) return undefined
-    return { packageName: spec.name, packageVersion: doc.version, tarballUrl }
-  }
-  const packageVersion = doc['dist-tags']?.['latest']
+  if (versions === undefined) return undefined
+  return maxSatisfyingTarballRef(versions, spec, options)
+}
+
+const distTagVersion = (doc: NpmRegistryDoc, tag: string): string | undefined => doc['dist-tags']?.[tag]
+
+const publishedAt = (doc: NpmRegistryDoc, packageVersion: string): string | undefined => doc.time?.[packageVersion]
+
+const isPublishedAfter = (doc: NpmRegistryDoc, packageVersion: string, before: Date): boolean => {
+  const published = publishedAt(doc, packageVersion)
+  if (published === undefined) return false
+  return new Date(published) > before
+}
+
+const isExcludedByBefore = (
+  doc: NpmRegistryDoc,
+  packageVersion: string,
+  options: PackageStoreOptions,
+): boolean => options.before !== undefined && isPublishedAfter(doc, packageVersion, options.before)
+
+const tarballUrlInDocVersions = (doc: NpmRegistryDoc, packageVersion: string): string | undefined => {
+  const versions = doc.versions
+  if (versions === undefined) return undefined
+  return tarballUrlIn(versions, packageVersion)
+}
+
+const publishedTagTarballRef = (
+  doc: NpmRegistryDoc,
+  spec: ParsedPackageSpec,
+  options: PackageStoreOptions,
+  packageVersion: string,
+): PackageStoreTarballRef | undefined => {
+  if (isExcludedByBefore(doc, packageVersion, options)) return undefined
+  return tarballRefOf(spec.name, packageVersion, tarballUrlInDocVersions(doc, packageVersion))
+}
+
+const namedTagTarballRef = (
+  doc: NpmRegistryDoc,
+  spec: ParsedPackageSpec,
+  options: PackageStoreOptions,
+): PackageStoreTarballRef | undefined => {
+  const packageVersion = distTagVersion(doc, spec.version)
   if (packageVersion === undefined) return undefined
-  const tarballUrl = versions?.[packageVersion]?.dist.tarball
-  if (tarballUrl === undefined) return undefined
-  return { packageName: spec.name, packageVersion, tarballUrl }
+  return publishedTagTarballRef(doc, spec, options, packageVersion)
+}
+
+const distTarballUrl = (doc: NpmRegistryDoc): string | undefined => doc.dist?.tarball
+
+const docVersionOrLatestTarballRef = (
+  doc: NpmRegistryDoc,
+  spec: ParsedPackageSpec,
+): PackageStoreTarballRef | undefined => {
+  const docVersion = doc.version
+  if (docVersion === undefined) return latestTagTarballRef(doc, spec)
+  return tarballRefOf(spec.name, docVersion, distTarballUrl(doc))
+}
+
+const latestTagTarballRef = (
+  doc: NpmRegistryDoc,
+  spec: ParsedPackageSpec,
+): PackageStoreTarballRef | undefined => {
+  const packageVersion = distTagVersion(doc, 'latest')
+  if (packageVersion === undefined) return undefined
+  return tarballRefOf(spec.name, packageVersion, tarballUrlInDocVersions(doc, packageVersion))
+}
+
+const tarballFor = (
+  doc: NpmRegistryDoc,
+  spec: ParsedPackageSpec,
+  options: PackageStoreOptions,
+): PackageStoreTarballRef | undefined => {
+  if (spec.versionKind === 'range') return rangeTarballRef(doc, spec, options)
+  return nonRangeTarballRef(doc, spec, options)
+}
+
+const nonRangeTarballRef = (
+  doc: NpmRegistryDoc,
+  spec: ParsedPackageSpec,
+  options: PackageStoreOptions,
+): PackageStoreTarballRef | undefined => {
+  if (isNamedTagSpec(spec)) return namedTagTarballRef(doc, spec, options)
+  return docVersionOrLatestTarballRef(doc, spec)
+}
+
+async function tarballRefForSpec(
+  scan: RegistryScan,
+  spec: ParsedPackageSpec,
+): Promise<PackageStoreTarballRef | undefined> {
+  const manifestUrl = manifestUrlFor(scan, spec)
+  const doc = assertRegistryDoc(decodeDoc(await registryPayload(scan, manifestUrl), manifestUrl), manifestUrl)
+  return tarballFor(doc, spec, scan.options)
+}
+
+const refOrContinueScan = async (
+  scan: RegistryScan,
+  packageSpecs: readonly ParsedPackageSpec[],
+  index: number,
+  pending: Promise<PackageStoreTarballRef | undefined>,
+): Promise<PackageStoreTarballRef | undefined> => {
+  const ref = await pending
+  if (ref !== undefined) return ref
+  return scanPackageSpecs(scan, packageSpecs, index + 1)
+}
+
+const scanPackageSpecs = async (
+  scan: RegistryScan,
+  packageSpecs: readonly ParsedPackageSpec[],
+  index: number,
+): Promise<PackageStoreTarballRef | undefined> => {
+  if (index === packageSpecs.length) return undefined
+  return refOrContinueScan(scan, packageSpecs, index, tarballRefForSpec(scan, packageSpecs[index]))
+}
+
+const requiredTarballRef = (
+  ref: PackageStoreTarballRef | undefined,
+  packageSpecs: readonly ParsedPackageSpec[],
+): PackageStoreTarballRef => {
+  if (ref === undefined) {
+    throw new PackageNotFoundError({ packageName: nameOf(packageSpecs) })
+  }
+  return ref
 }
 
 async function resolveTarballRef(
   packageSpecs: readonly ParsedPackageSpec[],
   options: PackageStoreOptions = {},
 ): Promise<PackageStoreTarballRef> {
-  const baseUrl = options.registryBaseUrl ?? 'https://registry.npmjs.org'
-  const fetchPackument = packageSpecs.some(
-    (spec) => spec.versionKind === 'range' || (spec.versionKind === 'tag' && spec.version !== 'latest'),
-  )
-  // The install-v1 abbreviated document omits `time`, so publish dates are only
-  // requested when a `before` cutoff actually needs them.
-  const includeTimes = options.before !== undefined && packageSpecs.some((spec) => spec.versionKind !== 'exact')
-  let accept: string
-  if (includeTimes) {
-    accept = 'application/json'
-  } else {
-    accept = 'application/vnd.npm.install-v1+json'
+  const baseUrl = registryBaseUrl(options)
+  const scan: RegistryScan = {
+    baseUrl,
+    options,
+    packument: await packumentFor(baseUrl, packageSpecs, options),
   }
-  let packument: unknown
-  if (fetchPackument) {
-    packument = await fetch(`${baseUrl}/${nameOf(packageSpecs)}`, { headers: { accept } }).then((r) => r.json())
-  }
-
-  for (const packageSpec of packageSpecs) {
-    const manifestUrl = `${baseUrl}/${packageSpec.name}/${packageSpec.version || 'latest'}`
-    const payload: unknown = packument ?? await fetch(manifestUrl).then((r) => r.json())
-    const decoded = decodeRegistryDoc(payload)
-    if (Option.isNone(decoded)) {
-      throw new PackageStoreError({ message: `Unexpected response from ${manifestUrl}` })
-    }
-    const doc = decoded.value
-    // `Not found` is how the registry reports a miss for one spec; every other
-    // error document means the request itself was wrong and must not be retried
-    // against the remaining specs.
-    if (doc.error !== undefined && doc.error !== 'Not found') {
-      throw new PackageStoreError({ message: `Unexpected response from ${manifestUrl}: ${doc.error}` })
-    }
-    const ref = tarballFor(doc, packageSpec, options)
-    if (ref !== undefined) return ref
-  }
-  throw new PackageNotFoundError({ packageName: nameOf(packageSpecs) })
+  return requiredTarballRef(await scanPackageSpecs(scan, packageSpecs, 0), packageSpecs)
 }
 
 async function fetchTarball(tarballUrl: string): Promise<Uint8Array> {

@@ -7,7 +7,13 @@ import {
   ResolutionTracesUnavailable,
 } from './detect-fallback-condition.workflow.js'
 import { ESNextModuleKind } from './ModuleKind.js'
-import { type EntrypointResolutionAnalysis, type ModuleKind, type Problem } from './Problem.schema.js'
+import {
+  type EntrypointResolutionAnalysis,
+  type ModuleKind,
+  type Problem,
+  type Resolution,
+  type ResolutionKind,
+} from './Problem.schema.js'
 
 export interface EntrypointResolutionsInput {
   readonly subpath: string
@@ -15,51 +21,77 @@ export interface EntrypointResolutionsInput {
   readonly node16ModuleKinds: Record<string, ModuleKind> | undefined
 }
 
-export const detectEntrypointResolutions = (
-  input: EntrypointResolutionsInput,
+const singleProblemList = (problem: Problem | undefined): readonly Problem[] => {
+  if (problem === undefined) return []
+  return [problem]
+}
+
+const isUntypedResolution = (resolution: Resolution): boolean => !resolution.isTypeScript && !resolution.isJson
+
+const untypedResolutionProblem = (
+  subpath: string,
+  resolution: Resolution,
+  resolutionKind: ResolutionKind,
+): Problem | undefined => {
+  if (isUntypedResolution(resolution)) {
+    return { kind: 'UntypedResolution', entrypoint: subpath, resolutionKind }
+  }
+  return undefined
+}
+
+const resolutionProblem = (subpath: string, entrypoint: EntrypointResolutionAnalysis): Problem | undefined => {
+  if (entrypoint.resolution === undefined) {
+    return { kind: 'NoResolution', entrypoint: subpath, resolutionKind: entrypoint.resolutionKind }
+  }
+  return untypedResolutionProblem(subpath, entrypoint.resolution, entrypoint.resolutionKind)
+}
+
+const moduleKindForFile = (
+  moduleKinds: Record<string, ModuleKind>,
+  resolution: Resolution | undefined,
+): ModuleKind | undefined => {
+  if (resolution === undefined) return undefined
+  return moduleKinds[resolution.fileName]
+}
+
+const moduleKindAt = (
+  moduleKinds: Record<string, ModuleKind> | undefined,
+  resolution: Resolution | undefined,
+): ModuleKind | undefined => {
+  if (moduleKinds === undefined) return undefined
+  return moduleKindForFile(moduleKinds, resolution)
+}
+
+const isEsmModuleKind = (moduleKind: ModuleKind | undefined): boolean => moduleKind?.detectedKind === ESNextModuleKind
+
+const resolvesToEsm = (
+  entrypoint: EntrypointResolutionAnalysis,
+  node16ModuleKinds: Record<string, ModuleKind> | undefined,
+): boolean =>
+  isEsmModuleKind(moduleKindAt(node16ModuleKinds, entrypoint.resolution)) ||
+  isEsmModuleKind(moduleKindAt(node16ModuleKinds, entrypoint.implementationResolution))
+
+const cjsResolvesToEsmProblem = (
+  subpath: string,
+  entrypoint: EntrypointResolutionAnalysis,
+  node16ModuleKinds: Record<string, ModuleKind> | undefined,
+): Problem | undefined => {
+  if (resolvesToEsm(entrypoint, node16ModuleKinds)) {
+    return { kind: 'CJSResolvesToESM', entrypoint: subpath, resolutionKind: entrypoint.resolutionKind }
+  }
+  return undefined
+}
+
+const moduleKindProblems = (
+  subpath: string,
+  entrypoint: EntrypointResolutionAnalysis,
+  node16ModuleKinds: Record<string, ModuleKind> | undefined,
 ): readonly Problem[] => {
-  const { subpath, entrypoint, node16ModuleKinds } = input
-  const problems: Problem[] = []
-  if (entrypoint.isWildcard === true) {
-    return problems
-  }
+  if (entrypoint.resolutionKind !== 'node16-cjs') return []
+  return singleProblemList(cjsResolvesToEsmProblem(subpath, entrypoint, node16ModuleKinds))
+}
 
-  if (!entrypoint.resolution) {
-    problems.push({
-      kind: 'NoResolution',
-      entrypoint: subpath,
-      resolutionKind: entrypoint.resolutionKind,
-    })
-  } else if (!entrypoint.resolution.isTypeScript && !entrypoint.resolution.isJson) {
-    problems.push({
-      kind: 'UntypedResolution',
-      entrypoint: subpath,
-      resolutionKind: entrypoint.resolutionKind,
-    })
-  }
-
-  if (entrypoint.resolutionKind === 'node16-cjs') {
-    const resolution = entrypoint.resolution
-    const implementationResolution = entrypoint.implementationResolution
-    let typesModuleKind: ModuleKind | undefined
-    if (resolution !== undefined && node16ModuleKinds !== undefined) {
-      typesModuleKind = node16ModuleKinds[resolution.fileName]
-    }
-    let implModuleKind: ModuleKind | undefined
-    if (implementationResolution !== undefined && node16ModuleKinds !== undefined) {
-      implModuleKind = node16ModuleKinds[implementationResolution.fileName]
-    }
-    const isTypesESM = typesModuleKind?.detectedKind === ESNextModuleKind
-    const isImplESM = implModuleKind?.detectedKind === ESNextModuleKind
-    if (isTypesESM || isImplESM) {
-      problems.push({
-        kind: 'CJSResolvesToESM',
-        entrypoint: subpath,
-        resolutionKind: entrypoint.resolutionKind,
-      })
-    }
-  }
-
+const fallbackProblem = (subpath: string, entrypoint: EntrypointResolutionAnalysis): Problem | undefined =>
   Match.value(
     detectFallbackCondition(
       new DetectFallbackConditionCommand({
@@ -72,13 +104,11 @@ export const detectEntrypointResolutions = (
   ).pipe(
     Match.tag('Success', (result) =>
       Match.value(result.success).pipe(
-        Match.tag('FallbackConditionDetected', () => {
-          problems.push({
-            kind: 'FallbackCondition',
-            entrypoint: subpath,
-            resolutionKind: entrypoint.resolutionKind,
-          })
-        }),
+        Match.tag('FallbackConditionDetected', (): Problem => ({
+          kind: 'FallbackCondition',
+          entrypoint: subpath,
+          resolutionKind: entrypoint.resolutionKind,
+        })),
         Match.tag('FallbackConditionAbsent', () => undefined),
         Match.exhaustive,
       )),
@@ -86,5 +116,12 @@ export const detectEntrypointResolutions = (
     Match.exhaustive,
   )
 
-  return problems
+export const detectEntrypointResolutions = (input: EntrypointResolutionsInput): readonly Problem[] => {
+  const { subpath, entrypoint, node16ModuleKinds } = input
+  if (entrypoint.isWildcard === true) return []
+  return [
+    ...singleProblemList(resolutionProblem(subpath, entrypoint)),
+    ...moduleKindProblems(subpath, entrypoint, node16ModuleKinds),
+    ...singleProblemList(fallbackProblem(subpath, entrypoint)),
+  ]
 }

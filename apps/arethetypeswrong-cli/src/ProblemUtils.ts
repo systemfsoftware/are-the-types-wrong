@@ -59,15 +59,24 @@ export const CliFormat = ['auto', 'table', 'table-flipped', 'ascii', 'json'] as 
 
 export const CliProfile = ['strict', 'node16', 'esm-only'] as const
 
+const conflictsWithIgnoredRule = (problem: Problem, ignoredRules: readonly string[]): boolean =>
+  ignoredRules.includes(problemFlagForKind(problem.kind))
+
+const conflictsWithIgnoredResolution = (problem: Problem, ignoredResolutions: readonly string[]): boolean =>
+  'resolutionKind' in problem && ignoredResolutions.includes(problem.resolutionKind)
+
+const isIgnoredProblem = (
+  problem: Problem,
+  ignoredRules: readonly string[],
+  ignoredResolutions: readonly string[],
+): boolean =>
+  conflictsWithIgnoredRule(problem, ignoredRules) || conflictsWithIgnoredResolution(problem, ignoredResolutions)
+
 export const isVisibleProblem = (
   problem: Problem,
   ignoredRules: readonly string[],
   ignoredResolutions: readonly string[],
-): boolean => {
-  const ruleIgnored = ignoredRules.includes(problemFlagForKind(problem.kind))
-  const resolutionIgnored = 'resolutionKind' in problem && ignoredResolutions.includes(problem.resolutionKind)
-  return !ruleIgnored && !resolutionIgnored
-}
+): boolean => !isIgnoredProblem(problem, ignoredRules, ignoredResolutions)
 
 export const isUntypedResult = (result: CheckResult): result is Extract<CheckResult, { types: false }> =>
   'types' in result && result.types === false
