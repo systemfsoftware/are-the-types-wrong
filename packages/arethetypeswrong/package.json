@@ -55,7 +55,6 @@
     "@effect/vitest": "catalog:",
     "@systemfsoftware/all": "catalog:",
     "@systemfsoftware/arethetypeswrong-cli": "catalog:",
-    "@systemfsoftware/arethetypeswrong-published": "npm:@systemfsoftware/arethetypeswrong@7.0.0",
     "@systemfsoftware/arethetypeswrong-recipes": "workspace:^",
     "@systemfsoftware/effect-cell-types": "catalog:",
     "@systemfsoftware/effect-gherkin-spec": "catalog:",
