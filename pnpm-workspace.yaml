@@ -35,8 +35,8 @@ catalog:
   "@types/node": ^24.13.4
   "@types/semver": ^7.8.0
   "@types/validate-npm-package-name": ^4.0.2
-  "@vitest/coverage-v8": ^4.1.11
-  "@vitest/snapshot": ^4.1.11
+  "@vitest/coverage-v8": ^5.0.0
+  "@vitest/snapshot": ^5.0.0
   cjs-module-lexer: ^2.2.1
   effect: 4.0.0-rc.112
   fast-check: ^4.10.0
@@ -52,7 +52,7 @@ catalog:
   typescript: ^7.0.2
   validate-npm-package-name: ^8.0.0
   vite-tsconfig-paths: ^6.1.1
-  vitest: ^4.1.11
+  vitest: ^5.0.0
 catalogMode: prefer
 catalogs:
   attw:
