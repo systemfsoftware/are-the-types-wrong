@@ -15,7 +15,7 @@ catalog:
   # (whose ranges admit rc.115) off a runtime their compiled code does not target.
   "@effect/platform-node": 4.0.0-rc.112
   "@effect/platform-node-shared": 4.0.0-rc.112
-  "@effect/vitest": 4.0.0-rc.112
+  "@effect/vitest": 4.0.0-rc.113
   "@loaderkit/resolve": ^1.0.6
   "@systemfsoftware/all": ^2.0.0
   "@systemfsoftware/arethetypeswrong-cli": ^4.1.0
@@ -66,4 +66,4 @@ overrides:
   effect: 4.0.0-rc.112
   "@effect/platform-node": 4.0.0-rc.112
   "@effect/platform-node-shared": 4.0.0-rc.112
-  "@effect/vitest": 4.0.0-rc.112
+  "@effect/vitest": 4.0.0-rc.113
