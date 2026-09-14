@@ -13,7 +13,7 @@ catalog:
   # effect-cell-types@7.0.0, effect-schema-law@2.1.0, stryker-js-cli@7.0.1, all@2.0.0), and
   # @effect/vitest@rc.112 peers `vitest >=4.1.0 <5.0.0`. The override keeps transitive consumers
   # (whose ranges admit rc.115) off a runtime their compiled code does not target.
-  "@effect/platform-node": 4.0.0-rc.112
+  "@effect/platform-node": 4.0.0-rc.113
   "@effect/platform-node-shared": 4.0.0-rc.112
   "@effect/vitest": 4.0.0-rc.112
   "@loaderkit/resolve": ^1.0.6
@@ -64,6 +64,6 @@ packages:
 
 overrides:
   effect: 4.0.0-rc.112
-  "@effect/platform-node": 4.0.0-rc.112
+  "@effect/platform-node": 4.0.0-rc.113
   "@effect/platform-node-shared": 4.0.0-rc.112
   "@effect/vitest": 4.0.0-rc.112

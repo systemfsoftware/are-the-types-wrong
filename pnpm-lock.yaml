@@ -130,7 +130,7 @@ catalogs:
 
 overrides:
   effect: 4.0.0-rc.112
-  '@effect/platform-node': 4.0.0-rc.112
+  '@effect/platform-node': 4.0.0-rc.113
   '@effect/platform-node-shared': 4.0.0-rc.112
   '@effect/vitest': 4.0.0-rc.112
 
@@ -175,8 +175,8 @@ importers:
   apps/arethetypeswrong-cli:
     devDependencies:
       '@effect/platform-node':
-        specifier: 4.0.0-rc.112
-        version: 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
+        specifier: 4.0.0-rc.113
+        version: 4.0.0-rc.113(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
       '@effect/platform-node-shared':
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)
@@ -532,8 +532,8 @@ packages:
     peerDependencies:
       effect: 4.0.0-rc.112
 
-  '@effect/platform-node@4.0.0-rc.112':
-    resolution: {integrity: sha512-/BMAcdNGQQskLmI0Zoa95KfTZkr9HV9N4NSxaSrusG6GeW6Ulp9KvZ+Rlaiw8lnOt43CXjFLdfll5/k5rxL4hQ==}
+  '@effect/platform-node@4.0.0-rc.113':
+    resolution: {integrity: sha512-8luSE2JcGVsALQ6cZOWh5jdZu+VgcUKIKPfhN/MjX+ZzIuK/krm3jZBHYZdhqkXjM9s8aYGBxNMHGF0WzF+Gpg==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       effect: 4.0.0-rc.112
@@ -2390,11 +2390,6 @@ packages:
   memfs@4.75.0:
     resolution: {integrity: sha512-ds3qQCghw0FsG9S+CSAR9F1n5nCwlA7Z5Mf8xgRec6iBAVPPwldmD5UxJhMstWhMhOVBwZ/FoBz09B46m3Le/g==}
 
-  mime@4.1.0:
-    resolution: {integrity: sha512-X5ju04+cAzsojXKes0B/S4tcYtFAJ6tTMuSPBEn9CPGlrWr8Fiw7qYeLT0XyH80HSoAoqWCaz+MWKh22P7G1cw==}
-    engines: {node: '>=16'}
-    hasBin: true
-
   minimatch@10.2.6:
     resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
     engines: {node: 18 || 20 || >=22}
@@ -3174,11 +3169,10 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@effect/platform-node@4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))':
+  '@effect/platform-node@4.0.0-rc.113(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))':
     dependencies:
       '@effect/platform-node-shared': 4.0.0-rc.112(effect@4.0.0-rc.112)
       effect: 4.0.0-rc.112
-      mime: 4.1.0
       redis: 6.2.1(@opentelemetry/api@1.9.1)
       undici: 8.10.2
     transitivePeerDependencies:
@@ -3895,7 +3889,7 @@ snapshots:
 
   '@systemfsoftware/stryker-js-cli@7.0.1(redis@6.2.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@effect/platform-node': 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
+      '@effect/platform-node': 4.0.0-rc.113(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
       '@effect/platform-node-shared': 4.0.0-rc.112(effect@4.0.0-rc.112)
       '@noble/hashes': 1.8.0
       '@systemfsoftware/effect-cell-types': 7.0.0(effect@4.0.0-rc.112)
@@ -4794,8 +4788,6 @@ snapshots:
       thingies: 2.6.1(tslib@2.8.1)
       tree-dump: 1.1.0(tslib@2.8.1)
       tslib: 2.8.1
-
-  mime@4.1.0: {}
 
   minimatch@10.2.6:
     dependencies:
