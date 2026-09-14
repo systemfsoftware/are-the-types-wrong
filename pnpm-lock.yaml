@@ -131,7 +131,7 @@ catalogs:
 overrides:
   effect: 4.0.0-rc.112
   '@effect/platform-node': 4.0.0-rc.112
-  '@effect/platform-node-shared': 4.0.0-rc.112
+  '@effect/platform-node-shared': 4.0.0-rc.113
   '@effect/vitest': 4.0.0-rc.112
 
 importers:
@@ -178,8 +178,8 @@ importers:
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
       '@effect/platform-node-shared':
-        specifier: 4.0.0-rc.112
-        version: 4.0.0-rc.112(effect@4.0.0-rc.112)
+        specifier: 4.0.0-rc.113
+        version: 4.0.0-rc.113(effect@4.0.0-rc.112)
       '@effect/vitest':
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)(vitest@4.1.11)
@@ -526,8 +526,8 @@ packages:
     resolution: {integrity: sha512-aalGyl7dbB5PArRebDIX43ZvBlXrYm9uWzGJ26t+4SzJVPsOuvfILGGbw5X4yX7i50YEmJ8zvbiWnqH/AAnZqg==}
     engines: {node: '>=22'}
 
-  '@effect/platform-node-shared@4.0.0-rc.112':
-    resolution: {integrity: sha512-ttjz0xKamFN7vL8pNDYVwddJLjZvqKePc05djlz2VcdaKbLsnYbtMnL1rbOfHgEnIUSHGh7FkjaN4DM1Ov81sQ==}
+  '@effect/platform-node-shared@4.0.0-rc.113':
+    resolution: {integrity: sha512-EPCfjvKlHmNDgqIlT85P1OcgNUNvRxNtBpTFOz1UGHwNJe6Ap7rP93Rue7kzFUeplQMy6EfoZEH4CJR4N0nJ1g==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       effect: 4.0.0-rc.112
@@ -3165,7 +3165,7 @@ snapshots:
 
   '@conventional-changelog/template@1.4.0': {}
 
-  '@effect/platform-node-shared@4.0.0-rc.112(effect@4.0.0-rc.112)':
+  '@effect/platform-node-shared@4.0.0-rc.113(effect@4.0.0-rc.112)':
     dependencies:
       '@types/ws': 8.18.1
       effect: 4.0.0-rc.112
@@ -3176,7 +3176,7 @@ snapshots:
 
   '@effect/platform-node@4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@effect/platform-node-shared': 4.0.0-rc.112(effect@4.0.0-rc.112)
+      '@effect/platform-node-shared': 4.0.0-rc.113(effect@4.0.0-rc.112)
       effect: 4.0.0-rc.112
       mime: 4.1.0
       redis: 6.2.1(@opentelemetry/api@1.9.1)
@@ -3896,7 +3896,7 @@ snapshots:
   '@systemfsoftware/stryker-js-cli@7.0.1(redis@6.2.1(@opentelemetry/api@1.9.1))':
     dependencies:
       '@effect/platform-node': 4.0.0-rc.112(effect@4.0.0-rc.112)(redis@6.2.1(@opentelemetry/api@1.9.1))
-      '@effect/platform-node-shared': 4.0.0-rc.112(effect@4.0.0-rc.112)
+      '@effect/platform-node-shared': 4.0.0-rc.113(effect@4.0.0-rc.112)
       '@noble/hashes': 1.8.0
       '@systemfsoftware/effect-cell-types': 7.0.0(effect@4.0.0-rc.112)
       '@systemfsoftware/stryker-js': 3.0.1
@@ -3924,7 +3924,7 @@ snapshots:
 
   '@systemfsoftware/stryker-js-html-reporter@3.0.1(effect@4.0.0-rc.112)':
     dependencies:
-      '@effect/platform-node-shared': 4.0.0-rc.112(effect@4.0.0-rc.112)
+      '@effect/platform-node-shared': 4.0.0-rc.113(effect@4.0.0-rc.112)
       '@systemfsoftware/effect-cell-types': 7.0.0(effect@4.0.0-rc.112)
       '@systemfsoftware/stryker-js': 3.0.1
       effect: 4.0.0-rc.112
@@ -4040,7 +4040,7 @@ snapshots:
 
   '@types/ssh2-streams@0.1.13':
     dependencies:
-      '@types/node': 22.20.2
+      '@types/node': 24.13.4
 
   '@types/ssh2@0.5.52':
     dependencies:
@@ -4055,7 +4055,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 22.20.2
+      '@types/node': 24.13.4
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
